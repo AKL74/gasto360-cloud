@@ -1,53 +1,146 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="es">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#173548"><title>Gasto360 Cloud</title>
-<link rel="manifest" href="./manifest.webmanifest"><link rel="stylesheet" href="./styles.css?v=8.1b">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#173548">
+<meta name="gasto360-build" content="R8.2G">
+<title>Gasto360 Cloud</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="stylesheet" href="./styles.css?v=8.2g">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@6/dist/tesseract.min.js"></script>
 </head>
-<body>
-<header><div><b>Gasto360</b><small>Cloud Â· Finanzas personales</small></div><div><button id="homeBtn" hidden>Inicio</button><button id="logout" hidden>Salir</button></div></header>
+<body data-build="R8.2G">
+<header class="topbar">
+  <div class="brand"><b>Gasto360</b><small>Cloud &middot; Finanzas personales</small></div>
+  <div class="top-actions">
+    <span id="signedAs" class="signed-as" hidden></span>
+    <button id="homeBtn" class="small-btn" hidden>Inicio</button>
+    <button id="logout" class="small-btn" hidden>Salir</button>
+  </div>
+</header>
+
 <main>
-<section id="setup" class="card" hidden><h1>ConfiguraciÃ³n pendiente</h1><p>El despliegue aÃºn no ha escrito la configuraciÃ³n Supabase.</p></section>
-<section id="login" class="login-card" hidden><div class="logo">G</div><h1>Gasto360 Cloud</h1><p>Accede con la cuenta Google autorizada.</p><button id="google">Continuar con Google</button><small>Datos y documentos protegidos mediante Supabase RLS.</small></section>
+<section id="setup" class="card setup-card" hidden>
+  <h1>Configuraci&oacute;n pendiente</h1>
+  <p>El despliegue todav&iacute;a no contiene la configuraci&oacute;n de Supabase.</p>
+</section>
+
+<section id="authError" class="card error-card" hidden>
+  <h2>No se pudo completar el acceso</h2>
+  <p id="authErrorText"></p>
+  <button id="retryAuth">Volver a intentar</button>
+</section>
+
+<section id="login" class="login-card" hidden>
+  <div class="logo">G</div>
+  <h1>Gasto360 Cloud</h1>
+  <p>Accede con la cuenta Google autorizada.</p>
+  <button id="google" class="google-btn">Continuar con Google</button>
+  <small>Datos y documentos protegidos mediante Supabase RLS.</small>
+</section>
 
 <section id="app" hidden>
- <div id="dashboardView">
-  <div class="hero"><div><span>GASTO360 CLOUD</span><h1>Tu economÃ­a, estÃ©s donde estÃ©s.</h1><p>Funciona con Wi-Fi, 4G o 5G; la laptop puede estar apagada.</p></div>
-  <div class="hero-actions"><button id="scanBtn">â–£ Escanear ticket</button><button id="expenseBtn">ï¼‹ Nuevo gasto</button></div></div>
-  <div class="grid metrics"><article class="card"><small>GASTO DEL MES</small><strong id="month-total">0,00 â‚¬</strong></article><article class="card"><small>MOVIMIENTOS</small><strong id="month-count">0</strong></article></div>
-  <section class="card"><div class="section-head"><h2>Ãšltimos gastos</h2><button id="refreshBtn" class="light">Actualizar</button></div><div id="expenses"></div></section>
- </div>
+  <div id="dashboardView">
+    <section class="hero">
+      <div>
+        <span class="eyebrow">GASTO360 CLOUD</span>
+        <h1>Tu econom&iacute;a, est&eacute;s donde est&eacute;s.</h1>
+        <p>Funciona con Wi-Fi, 4G o 5G; la laptop puede estar apagada.</p>
+      </div>
+      <div class="hero-actions">
+        <button id="scanBtn" class="light-btn">Escanear ticket</button>
+        <button id="expenseBtn">+ Nuevo gasto</button>
+      </div>
+    </section>
 
- <section id="expenseView" class="card" hidden>
-  <div class="section-head"><div><small>NUEVO MOVIMIENTO</small><h2>Registrar gasto</h2></div><button class="light backBtn">Volver</button></div>
-  <form id="expenseForm" class="formgrid">
-   <label>Fecha<input type="date" id="date" required></label>
-   <label>Comercio<input id="merchant" required></label>
-   <label>Concepto<input id="concept"></label>
-   <label>CategorÃ­a<select id="category"><option>AlimentaciÃ³n</option><option>Hogar</option><option>VehÃ­culo</option><option>Salud</option><option>TecnologÃ­a</option><option>Ocio</option><option>EducaciÃ³n</option><option>Servicios</option><option>Otros</option></select></label>
-   <label>Importe (â‚¬)<input type="number" step="0.01" min="0" id="amount" required></label>
-   <label>IVA (â‚¬)<input type="number" step="0.01" min="0" id="tax" value="0"></label>
-   <label>Forma de pago<select id="payment"><option>Tarjeta</option><option>Efectivo</option><option>Transferencia</option><option>Bizum</option><option>Otro</option></select></label>
-   <label>Ãmbito<select id="scope"><option value="personal">Personal</option><option value="shared">Compartido</option></select></label>
-   <label class="full">Notas<textarea id="notes"></textarea></label>
-   <button class="primary full" type="submit">Guardar gasto</button>
-  </form>
- </section>
+    <section class="grid metrics">
+      <article class="card">
+        <small>GASTO DEL MES</small>
+        <strong id="month-total">0,00 &euro;</strong>
+      </article>
+      <article class="card">
+        <small>MOVIMIENTOS</small>
+        <strong id="month-count">0</strong>
+      </article>
+    </section>
 
- <section id="scannerView" hidden>
-  <div class="card"><div class="section-head"><div><small>DOCUMENT SCANNER PRO</small><h2>Escanear ticket o factura</h2></div><button class="light backBtn">Volver</button></div>
-  <input id="scanFile" type="file" accept="image/*" capture="environment">
-  <div class="scan-grid">
-   <div><h3>1. Ajusta los 4 vÃ©rtices</h3><div class="canvas-wrap"><canvas id="srcCanvas"></canvas><canvas id="overlayCanvas"></canvas></div><div class="buttons"><button id="autoEdges" type="button" class="light">Detectar bordes</button><button id="perspective" type="button">Corregir perspectiva</button></div></div>
-   <div><h3>2. Documento corregido</h3><canvas id="dstCanvas"></canvas><div id="ocrStatus" class="status">Selecciona una imagen.</div><button id="ocrBtn" type="button" disabled>Leer con OCR</button></div>
-  </div></div>
- </section>
+    <section class="card">
+      <div class="section-head">
+        <div>
+          <small>ACTIVIDAD</small>
+          <h2>&Uacute;ltimos gastos</h2>
+        </div>
+        <button id="refreshBtn" class="light-btn">Actualizar</button>
+      </div>
+      <div id="dataStatus" class="data-status" hidden></div>
+      <div id="expenses"></div>
+    </section>
+  </div>
+
+  <section id="expenseView" class="card" hidden>
+    <div class="section-head">
+      <div><small>NUEVO MOVIMIENTO</small><h2>Registrar gasto</h2></div>
+      <button class="light-btn backBtn">Volver</button>
+    </div>
+    <form id="expenseForm" class="formgrid">
+      <label>Fecha<input type="date" id="date" required></label>
+      <label>Comercio<input id="merchant" required autocomplete="organization"></label>
+      <label>Concepto<input id="concept"></label>
+      <label>Categor&iacute;a
+        <select id="category">
+          <option>Alimentaci&oacute;n</option><option>Hogar</option><option>Veh&iacute;culo</option>
+          <option>Salud</option><option>Tecnolog&iacute;a</option><option>Ocio</option>
+          <option>Educaci&oacute;n</option><option>Servicios</option><option>Otros</option>
+        </select>
+      </label>
+      <label>Importe (&euro;)<input type="number" step="0.01" min="0" id="amount" required></label>
+      <label>IVA (&euro;)<input type="number" step="0.01" min="0" id="tax" value="0"></label>
+      <label>Forma de pago
+        <select id="payment"><option>Tarjeta</option><option>Efectivo</option><option>Transferencia</option><option>Bizum</option><option>Otro</option></select>
+      </label>
+      <label>&Aacute;mbito
+        <select id="scope"><option value="personal">Personal</option><option value="shared">Compartido</option></select>
+      </label>
+      <label class="full">Notas<textarea id="notes"></textarea></label>
+      <button class="primary full" type="submit">Guardar gasto</button>
+    </form>
+  </section>
+
+  <section id="scannerView" hidden>
+    <div class="card">
+      <div class="section-head">
+        <div><small>DOCUMENT SCANNER PRO</small><h2>Escanear ticket o factura</h2></div>
+        <button class="light-btn backBtn">Volver</button>
+      </div>
+      <input id="scanFile" type="file" accept="image/*" capture="environment">
+      <div class="scan-grid">
+        <div>
+          <h3>1. Ajusta los 4 v&eacute;rtices</h3>
+          <div class="canvas-wrap"><canvas id="srcCanvas"></canvas><canvas id="overlayCanvas"></canvas></div>
+          <div class="buttons"><button id="autoEdges" type="button" class="light-btn">Detectar bordes</button><button id="perspective" type="button">Corregir perspectiva</button></div>
+        </div>
+        <div>
+          <h3>2. Documento corregido</h3>
+          <canvas id="dstCanvas"></canvas>
+          <div id="ocrStatus" class="status">Selecciona una imagen.</div>
+          <button id="ocrBtn" type="button" disabled>Leer con OCR</button>
+        </div>
+      </div>
+    </div>
+  </section>
 </section>
 </main>
-<script src="./config.js?v=8.1b"></script><script src="./app.js?v=8.1b"></script><script src="./scanner.js?v=8.1b"></script>
-<script>if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{});</script>
-</body></html>
+
+<script src="./config.js?v=8.2g"></script>
+<script src="./app.js?v=8.2g"></script>
+<script src="./scanner.js?v=8.2g"></script>
+<script>
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("./sw.js?v=8.2g").catch(()=>{});
+}
+</script>
+</body>
+</html>
