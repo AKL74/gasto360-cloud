@@ -1,5 +1,5 @@
 (()=>{
-const GASTO360_R8_4_2=true;
+const GASTO360_R8_5_SYNC=true;
 const cfg=window.GASTO360_CONFIG||{};
 const CLOUD_URL="https://akl74.github.io/gasto360-cloud/";
 const BUCKET="gasto360-documents";
@@ -115,6 +115,7 @@ async function loadExpenses(){
   const next=new Date(y,m,1);
   const nextPeriod=`${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,"0")}`;
   const {data,error}=await sb.from("expenses").select("*")
+    .is("deleted_at",null)
     .gte("date",selectedPeriod+"-01")
     .lt("date",nextPeriod+"-01")
     .order("date",{ascending:false})
@@ -124,14 +125,14 @@ async function loadExpenses(){
   return currentExpenses
 }
 async function loadDocuments(render=true){
-  const {data,error}=await sb.from("documents").select("*").order("created_at",{ascending:false});
+  const {data,error}=await sb.from("documents").select("*").is("deleted_at",null).order("created_at",{ascending:false});
   if(error)throw error;
   currentDocs=data||[];
   if(render)renderDocuments();
   return currentDocs
 }
 async function loadDocumentExpenses(){
-  const {data,error}=await sb.from("expenses").select("*").order("date",{ascending:false}).limit(2000);
+  const {data,error}=await sb.from("expenses").select("*").is("deleted_at",null).order("date",{ascending:false}).limit(2000);
   if(error)throw error;
   documentExpenses=data||[];
   return documentExpenses
@@ -189,7 +190,7 @@ function expenseFromForm(){
     amount:Number($("amount").value),tax:Number($("tax").value||0),payment_method:$("payment").value,scope:$("scope").value,notes:$("notes").value.trim()}
 }
 async function findSimilar(expense){
-  const {data,error}=await sb.from("expenses").select("*").eq("date",expense.date).eq("amount",expense.amount).limit(20);
+  const {data,error}=await sb.from("expenses").select("*").is("deleted_at",null).eq("date",expense.date).eq("amount",expense.amount).limit(20);
   if(error)throw error;
   return (data||[]).filter(x=>norm(x.merchant)===norm(expense.merchant)&&norm(x.concept||"")===norm(expense.concept||""))
 }
@@ -321,13 +322,13 @@ $("expenseEditForm").onsubmit=async e=>{
 $("openExpenseDocs").onclick=()=>openDocumentGroup($("editExpenseId").value);
 $("deleteExpenseBtn").onclick=async()=>{
   const id=$("editExpenseId").value,x=currentExpenses.find(e=>e.id===id);
-  if(!confirm(`Eliminar definitivamente el gasto "${x?.merchant||""}" de ${money(x?.amount)}?`))return;
-  const docs=currentDocs.filter(d=>d.expense_id===id);
-  const paths=docs.filter(d=>d.upload_status==="stored").map(d=>d.storage_path);
-  if(paths.length){const rem=await sb.storage.from(BUCKET).remove(paths);if(rem.error)toast("Aviso: no se pudieron borrar todos los archivos físicos.","warn")}
-  for(const d of docs){try{await deleteQueuedBlob(d.id)}catch{}}
-  const r=await sb.from("expenses").delete().eq("id",id);if(r.error){toast("No se pudo eliminar: "+r.error.message,"error");return}
-  toast("Gasto eliminado.");showView("dashboardView");await refreshAll()
+  if(!confirm(`Eliminar el gasto "${x?.merchant||""}" de ${money(x?.amount)}? Se ocultará en todos tus dispositivos.`))return;
+  const stamp=new Date().toISOString();
+  const docs=await sb.from("documents").update({deleted_at:stamp,updated_at:stamp}).eq("expense_id",id);
+  if(docs.error){toast("No se pudieron marcar los documentos: "+docs.error.message,"error");return}
+  const r=await sb.from("expenses").update({deleted_at:stamp,updated_at:stamp}).eq("id",id);
+  if(r.error){toast("No se pudo eliminar: "+r.error.message,"error");return}
+  toast("Gasto eliminado. La eliminación se sincronizará con Windows.");showView("dashboardView");await refreshAll()
 };
 
 async function openDocuments(){
