@@ -4,322 +4,170 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#173548">
-<meta name="gasto360-build" content="R8.3">
+<meta name="color-scheme" content="light">
+<meta name="gasto360-build" content="R8.4">
 <title>Gasto360 Cloud</title>
 <link rel="manifest" href="./manifest.webmanifest">
-<link rel="stylesheet" href="./styles.css?v=8.3">
+<link rel="stylesheet" href="./styles.css?v=8.4">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@6/dist/tesseract.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tus-js-client@4/dist/tus.min.js"></script>
 </head>
-<body data-build="R8.3">
+<body data-build="R8.4">
 <header class="topbar">
-  <div class="brand">
-    <b>Gasto360</b>
-    <small>Cloud &middot; Finanzas personales</small>
-  </div>
+  <div class="brand"><b>Gasto360</b><small>Cloud &middot; Finanzas personales</small></div>
   <div class="top-actions">
     <span id="signedAs" class="signed-as" hidden></span>
     <button id="homeBtn" class="small-btn" hidden>Inicio</button>
-    <button id="docsBtn" class="small-btn" hidden>Documentos</button>
+    <button id="docsBtn" class="small-btn" hidden>Docs</button>
     <button id="logout" class="small-btn" hidden>Salir</button>
   </div>
 </header>
 
 <main>
-<section id="setup" class="card narrow" hidden>
-  <h1>Configuraci&oacute;n pendiente</h1>
-  <p>Falta la configuraci&oacute;n de Supabase.</p>
-</section>
-
-<section id="authError" class="card narrow error-card" hidden>
-  <h2>No se pudo completar el acceso</h2>
-  <p id="authErrorText"></p>
-  <button id="retryAuth">Volver a intentar</button>
-</section>
+<section id="setup" class="card narrow" hidden><h1>Configuraci&oacute;n pendiente</h1><p>Falta la configuraci&oacute;n de Supabase.</p></section>
+<section id="authError" class="card narrow error-card" hidden><h2>No se pudo completar el acceso</h2><p id="authErrorText"></p><button id="retryAuth">Volver a intentar</button></section>
 
 <section id="login" class="login-card" hidden>
-  <div class="logo">G</div>
-  <h1>Gasto360 Cloud</h1>
-  <p>Accede con la cuenta Google autorizada.</p>
-  <button id="google" class="google-btn">Continuar con Google</button>
-  <small>Datos y documentos protegidos mediante Supabase RLS.</small>
+  <div class="logo">G</div><h1>Gasto360 Cloud</h1><p>Accede con la cuenta Google autorizada.</p>
+  <button id="google" class="google-btn">Continuar con Google</button><small>Datos y documentos protegidos mediante Supabase RLS.</small>
 </section>
 
 <section id="app" hidden>
-
   <section id="dashboardView">
     <section class="hero">
-      <div>
-        <span class="eyebrow">GASTO360 CLOUD</span>
-        <h1>Tu econom&iacute;a, est&eacute;s donde est&eacute;s.</h1>
-        <p>Gastos, tickets y facturas unidos en un solo lugar.</p>
-      </div>
-      <div class="hero-actions">
-        <button id="scanBtn" class="light-btn">Escanear ticket</button>
-        <button id="expenseBtn">+ Nuevo gasto</button>
-      </div>
+      <div><span class="eyebrow">GASTO360 CLOUD</span><h1>Tu econom&iacute;a, est&eacute;s donde est&eacute;s.</h1><p>Gastos, tickets y facturas unidos en un solo lugar.</p></div>
+      <div class="hero-actions"><button id="scanBtn" class="light-btn">Escanear ticket</button><button id="expenseBtn">+ Nuevo gasto</button></div>
     </section>
-
     <section class="metrics-grid">
-      <article class="card metric">
-        <small>GASTO DEL MES</small>
-        <strong id="month-total">0,00 &euro;</strong>
-      </article>
-      <article class="card metric">
-        <small>MOVIMIENTOS</small>
-        <strong id="month-count">0</strong>
-      </article>
-      <article class="card metric actionable" id="docsMetric">
-        <small>DOCUMENTOS</small>
-        <strong id="docs-count">0</strong>
-        <span id="pending-docs-text">0 pendientes</span>
-      </article>
-      <article class="card metric actionable" id="duplicatesMetric">
-        <small>POSIBLES DUPLICADOS</small>
-        <strong id="duplicate-count">0</strong>
-        <span>Revisar movimientos repetidos</span>
-      </article>
+      <article class="card metric"><small>GASTO DEL MES</small><strong id="month-total">0,00 &euro;</strong></article>
+      <article class="card metric"><small>MOVIMIENTOS</small><strong id="month-count">0</strong></article>
+      <article class="card metric actionable" id="docsMetric"><small>DOCUMENTOS</small><strong id="docs-count">0</strong><span id="pending-docs-text">0 pendientes</span></article>
+      <article class="card metric actionable" id="duplicatesMetric"><small>POSIBLES DUPLICADOS</small><strong id="duplicate-count">0</strong><span>Revisar movimientos repetidos</span></article>
     </section>
-
     <section class="card">
-      <div class="section-head">
-        <div>
-          <small>ACTIVIDAD</small>
-          <h2>&Uacute;ltimos gastos</h2>
-        </div>
-        <button id="refreshBtn" class="light-btn">Actualizar</button>
-      </div>
-      <div id="dataStatus" class="data-status" hidden></div>
-      <div id="expenses"></div>
+      <div class="section-head"><div><small>ACTIVIDAD</small><h2>&Uacute;ltimos gastos</h2></div><button id="refreshBtn" class="light-btn">Actualizar</button></div>
+      <div id="dataStatus" class="data-status" hidden></div><div id="expenses"></div>
     </section>
   </section>
 
   <section id="expenseView" class="card" hidden>
-    <div class="section-head">
-      <div><small>NUEVO MOVIMIENTO</small><h2>Registrar gasto</h2></div>
-      <button class="light-btn backHomeBtn">Volver</button>
-    </div>
-
-    <div id="scanAttached" class="scan-attached" hidden>
-      <span>Documento preparado</span>
-      <b id="scanAttachedName"></b>
-      <button id="removeScan" class="text-btn" type="button">Quitar documento</button>
-    </div>
-
+    <div class="section-head"><div><small>NUEVO MOVIMIENTO</small><h2>Registrar gasto</h2></div><button class="light-btn backHomeBtn">Volver</button></div>
+    <div id="scanAttached" class="scan-attached" hidden><span>Documento preparado</span><b id="scanAttachedName"></b><button id="removeScan" class="text-btn" type="button">Quitar</button></div>
     <form id="expenseForm" class="formgrid">
-      <label>Fecha<input type="date" id="date" required></label>
-      <label>Comercio<input id="merchant" required autocomplete="organization"></label>
-      <label>Concepto<input id="concept"></label>
-      <label>Categor&iacute;a
-        <select id="category">
-          <option>Alimentaci&oacute;n</option><option>Hogar</option><option>Veh&iacute;culo</option>
-          <option>Salud</option><option>Tecnolog&iacute;a</option><option>Ocio</option>
-          <option>Educaci&oacute;n</option><option>Servicios</option><option>Otros</option>
-        </select>
-      </label>
-      <label>Importe (&euro;)<input type="number" step="0.01" min="0" id="amount" required></label>
-      <label>IVA (&euro;)<input type="number" step="0.01" min="0" id="tax" value="0"></label>
-      <label>Forma de pago
-        <select id="payment"><option>Tarjeta</option><option>Efectivo</option><option>Transferencia</option><option>Bizum</option><option>Otro</option></select>
-      </label>
-      <label>&Aacute;mbito
-        <select id="scope"><option value="personal">Personal</option><option value="shared">Compartido</option></select>
-      </label>
-      <label class="full">Notas<textarea id="notes"></textarea></label>
-      <button id="saveExpenseBtn" class="primary full" type="submit">Guardar gasto</button>
+      <label>Fecha<input type="date" id="date" required></label><label>Comercio<input id="merchant" required></label>
+      <label>Concepto<input id="concept"></label><label>Categor&iacute;a<select id="category"><option>Alimentaci&oacute;n</option><option>Hogar</option><option>Veh&iacute;culo</option><option>Salud</option><option>Tecnolog&iacute;a</option><option>Ocio</option><option>Educaci&oacute;n</option><option>Servicios</option><option>Otros</option></select></label>
+      <label>Importe (&euro;)<input type="number" step="0.01" min="0" id="amount" required></label><label>IVA (&euro;)<input type="number" step="0.01" min="0" id="tax" value="0"></label>
+      <label>Forma de pago<select id="payment"><option>Tarjeta</option><option>Efectivo</option><option>Transferencia</option><option>Bizum</option><option>Otro</option></select></label>
+      <label>&Aacute;mbito<select id="scope"><option value="personal">Personal</option><option value="shared">Compartido</option></select></label>
+      <label class="full">Notas<textarea id="notes"></textarea></label><button id="saveExpenseBtn" class="primary full" type="submit">Guardar gasto</button>
     </form>
-
-    <div id="duplicateWarning" class="warning-card" hidden>
-      <h3>Posible gasto duplicado</h3>
-      <p>Ya existe un movimiento con la misma fecha, comercio e importe.</p>
-      <div id="duplicateExisting"></div>
-      <div class="action-row">
-        <button id="cancelDuplicate" class="light-btn" type="button">Cancelar</button>
-        <button id="forceDuplicate" type="button">Guardar de todos modos</button>
-      </div>
-    </div>
+    <div id="duplicateWarning" class="warning-card" hidden><h3>Posible gasto duplicado</h3><p>Ya existe un movimiento con la misma fecha, comercio e importe.</p><div id="duplicateExisting"></div><div class="action-row"><button id="cancelDuplicate" class="light-btn" type="button">Cancelar</button><button id="forceDuplicate" type="button">Guardar de todos modos</button></div></div>
   </section>
 
   <section id="expenseDetailView" class="card" hidden>
-    <div class="section-head">
-      <div><small>MOVIMIENTO</small><h2>Revisar y corregir gasto</h2></div>
-      <button class="light-btn backHomeBtn">Volver</button>
-    </div>
+    <div class="section-head"><div><small>MOVIMIENTO</small><h2>Revisar y corregir gasto</h2></div><button class="light-btn backHomeBtn">Volver</button></div>
     <form id="expenseEditForm" class="formgrid">
-      <input type="hidden" id="editExpenseId">
-      <label>Fecha<input type="date" id="editDate" required></label>
-      <label>Comercio<input id="editMerchant" required></label>
-      <label>Concepto<input id="editConcept"></label>
-      <label>Categor&iacute;a<input id="editCategory"></label>
-      <label>Importe (&euro;)<input type="number" step="0.01" min="0" id="editAmount" required></label>
-      <label>IVA (&euro;)<input type="number" step="0.01" min="0" id="editTax"></label>
-      <label>Forma de pago<input id="editPayment"></label>
-      <label>&Aacute;mbito<input id="editScope"></label>
-      <label class="full">Notas<textarea id="editNotes"></textarea></label>
-      <button class="primary" type="submit">Guardar correcciones</button>
-      <button id="openExpenseDocs" class="light-btn" type="button">Ver documentos</button>
-      <button id="deleteExpenseBtn" class="danger full" type="button">Eliminar este gasto</button>
+      <input type="hidden" id="editExpenseId"><label>Fecha<input type="date" id="editDate" required></label><label>Comercio<input id="editMerchant" required></label>
+      <label>Concepto<input id="editConcept"></label><label>Categor&iacute;a<input id="editCategory"></label><label>Importe (&euro;)<input type="number" step="0.01" min="0" id="editAmount" required></label>
+      <label>IVA (&euro;)<input type="number" step="0.01" min="0" id="editTax"></label><label>Forma de pago<input id="editPayment"></label><label>&Aacute;mbito<input id="editScope"></label>
+      <label class="full">Notas<textarea id="editNotes"></textarea></label><button class="primary" type="submit">Guardar correcciones</button><button id="openExpenseDocs" class="light-btn" type="button">Ver documentos</button><button id="deleteExpenseBtn" class="danger full" type="button">Eliminar este gasto</button>
     </form>
   </section>
 
   <section id="scannerView" hidden>
-    <section class="card">
-      <div class="section-head">
-        <div><small>DOCUMENT SCANNER PRO</small><h2>Escanear ticket o factura</h2></div>
-        <button class="light-btn backHomeBtn">Volver</button>
+    <section class="scanner-shell">
+      <div class="scanner-head">
+        <div><span class="eyebrow">SCANNER INTELIGENTE</span><h1>Registrar desde ticket</h1></div>
+        <button id="scannerExit" class="light-btn backHomeBtn">Salir</button>
       </div>
 
-      <div class="capture-actions">
-        <label class="capture-button">Tomar foto
-          <input id="cameraFile" type="file" accept="image/*" capture="environment">
-        </label>
-        <label class="capture-button secondary">Elegir imagen
-          <input id="galleryFile" type="file" accept="image/*">
-        </label>
+      <div class="scan-stepper" aria-label="Progreso">
+        <div class="scan-step active" data-step-ind="1"><span>1</span><b>Foto</b></div>
+        <div class="scan-step" data-step-ind="2"><span>2</span><b>Encuadre</b></div>
+        <div class="scan-step" data-step-ind="3"><span>3</span><b>Lectura</b></div>
+        <div class="scan-step" data-step-ind="4"><span>4</span><b>Confirmar</b></div>
       </div>
 
-      <div id="scannerStatus" class="scanner-status">Haz una foto o elige un ticket.</div>
-
-      <div class="scan-grid">
-        <div>
-          <div class="scan-title"><b>1. Original y v&eacute;rtices</b><small>Los 4 puntos se pueden mover.</small></div>
-          <div class="canvas-wrap"><canvas id="srcCanvas"></canvas><canvas id="overlayCanvas"></canvas></div>
-          <div class="action-row">
-            <button id="autoEdges" type="button" class="light-btn">Detectar bordes</button>
-            <button id="perspective" type="button">Corregir perspectiva</button>
-          </div>
+      <section id="scanStep1" class="scan-stage">
+        <div class="stage-title"><h2>Haz una foto n&iacute;tida del ticket</h2><p>Col&oacute;calo completo, sin cortar bordes y evitando sombras fuertes.</p></div>
+        <div class="capture-actions">
+          <label class="capture-button">Abrir c&aacute;mara<input id="cameraFile" type="file" accept="image/*" capture="environment"></label>
+          <label class="capture-button secondary">Elegir de galer&iacute;a<input id="galleryFile" type="file" accept="image/*"></label>
         </div>
-        <div>
-          <div class="scan-title"><b>2. Documento corregido</b><small>Se optimiza autom&aacute;ticamente para OCR.</small></div>
-          <canvas id="dstCanvas"></canvas>
-          <div id="ocrStatus" class="status">Esperando imagen.</div>
-          <button id="ocrBtn" type="button" disabled>Repetir OCR</button>
-        </div>
-      </div>
+        <div class="capture-tips"><span>✓ Ticket completo</span><span>✓ Buena luz</span><span>✓ C&aacute;mara paralela</span></div>
+      </section>
 
-      <div id="ocrReview" class="ocr-review" hidden>
-        <div class="section-head">
-          <div><small>REVISI&Oacute;N ANTES DE GUARDAR</small><h2>Datos detectados</h2></div>
+      <section id="scanStep2" class="scan-stage" hidden>
+        <div class="stage-title"><h2>Comprueba el encuadre</h2><p id="cropHint">Hemos intentado detectar los 4 bordes. Mueve cualquier punto si hace falta.</p></div>
+        <div id="qualityBanner" class="quality-banner" hidden></div>
+        <div class="canvas-wrap"><canvas id="srcCanvas"></canvas><canvas id="overlayCanvas"></canvas><div id="cornerLoupe" class="corner-loupe" hidden><canvas id="loupeCanvas"></canvas></div></div>
+        <div class="stage-actions"><button id="retakeBtn" class="light-btn" type="button">Repetir foto</button><button id="autoEdges" class="light-btn" type="button">Redetectar bordes</button><button id="acceptCrop" type="button">Continuar</button></div>
+      </section>
+
+      <section id="scanStep3" class="scan-stage" hidden>
+        <div class="stage-title"><h2>Estamos leyendo el ticket</h2><p>Mejoramos la imagen y comprobamos empresa, fecha, total, IVA y productos.</p></div>
+        <div class="processing-card">
+          <div class="spinner"></div><strong id="processingTitle">Corrigiendo perspectiva...</strong><span id="processingDetail">Preparando documento</span>
+          <div class="progress-track"><div id="ocrProgressBar"></div></div>
+        </div>
+        <details class="processing-preview"><summary>Ver documento corregido</summary><canvas id="dstCanvas"></canvas></details>
+      </section>
+
+      <section id="scanStep4" class="scan-stage" hidden>
+        <div class="review-hero">
+          <div><span class="eyebrow">REVISA SOLO LO IMPORTANTE</span><h2>Datos detectados</h2><p id="reviewSummary">Comprueba los campos marcados en amarillo.</p></div>
           <span id="ocrOverallConfidence" class="confidence"></span>
         </div>
+
+        <div id="fiscalCheck" class="fiscal-check" hidden></div>
+
         <div class="review-grid">
-          <label>Empresa
-            <input id="ocrMerchant">
-            <span id="confMerchant" class="field-confidence"></span>
-          </label>
-          <label>Fecha
-            <input type="date" id="ocrDate">
-            <span id="confDate" class="field-confidence"></span>
-          </label>
-          <label>Importe (&euro;)
-            <input type="number" step="0.01" id="ocrAmount">
-            <span id="confAmount" class="field-confidence"></span>
-          </label>
-          <label>IVA (&euro;)
-            <input type="number" step="0.01" id="ocrTax">
-            <span id="confTax" class="field-confidence"></span>
-          </label>
-          <label class="full">Concepto
-            <input id="ocrConcept">
-            <span id="confConcept" class="field-confidence"></span>
-          </label>
-          <label>Categor&iacute;a
-            <select id="ocrCategory">
-              <option>Alimentaci&oacute;n</option><option>Hogar</option><option>Veh&iacute;culo</option>
-              <option>Salud</option><option>Tecnolog&iacute;a</option><option>Ocio</option>
-              <option>Educaci&oacute;n</option><option>Servicios</option><option>Otros</option>
-            </select>
-          </label>
-          <label>NIF/CIF detectado<input id="ocrTaxId" readonly></label>
-          <label>Factura/Ticket n.&ordm;<input id="ocrInvoiceNo" readonly></label>
+          <label class="review-field" id="fieldMerchant">Empresa<input id="ocrMerchant"><span id="confMerchant" class="field-confidence"></span><div id="merchantCandidates" class="candidate-row"></div></label>
+          <label class="review-field" id="fieldDate">Fecha<input type="date" id="ocrDate"><span id="confDate" class="field-confidence"></span></label>
+          <label class="review-field" id="fieldAmount">Total pagado (&euro;)<input type="number" step="0.01" id="ocrAmount"><span id="confAmount" class="field-confidence"></span><div id="amountCandidates" class="candidate-row"></div></label>
+          <label class="review-field" id="fieldTax">IVA / impuestos (&euro;)<input type="number" step="0.01" id="ocrTax"><span id="confTax" class="field-confidence"></span></label>
+          <label class="review-field full" id="fieldConcept">Concepto<input id="ocrConcept"><span id="confConcept" class="field-confidence"></span></label>
+          <label class="review-field">Categor&iacute;a<select id="ocrCategory"><option>Alimentaci&oacute;n</option><option>Hogar</option><option>Veh&iacute;culo</option><option>Salud</option><option>Tecnolog&iacute;a</option><option>Ocio</option><option>Educaci&oacute;n</option><option>Servicios</option><option>Otros</option></select></label>
+          <label class="review-field">Forma de pago<select id="ocrPayment"><option>Tarjeta</option><option>Efectivo</option><option>Transferencia</option><option>Bizum</option><option>Otro</option></select></label>
+          <label class="review-field">NIF/CIF<input id="ocrTaxId"></label><label class="review-field">Ticket / factura n.&ordm;<input id="ocrInvoiceNo"></label>
         </div>
-        <details>
-          <summary>Ver texto OCR completo</summary>
+
+        <div class="items-card">
+          <div class="section-head"><div><small>PRODUCTOS DETECTADOS</small><h3 id="itemsTitle">Sin productos identificados</h3></div><button id="editItemsBtn" class="light-btn" type="button">Editar</button></div>
+          <div id="itemsList"></div>
+        </div>
+
+        <details class="advanced-review">
+          <summary>Revisar imagen y texto OCR</summary>
+          <div class="corrected-preview"><canvas id="reviewCanvas"></canvas></div>
           <pre id="ocrRawText"></pre>
+          <button id="repeatOcrBtn" class="light-btn" type="button">Repetir OCR</button>
         </details>
-        <button id="useOcrData" class="primary wide" type="button">Usar estos datos y revisar gasto</button>
-      </div>
+
+        <div id="scanDuplicateWarning" class="warning-card" hidden><h3>Este gasto parece repetido</h3><div id="scanDuplicateExisting"></div><div class="action-row"><button id="cancelScanDuplicate" class="light-btn" type="button">Revisar</button><button id="forceScanSave" type="button">Guardar igualmente</button></div></div>
+
+        <div class="save-zone"><button id="saveScanBtn" class="primary" type="button">Guardar gasto + ticket</button><small>Se guardar&aacute;n juntos el gasto, el original, la imagen corregida y el OCR.</small></div>
+      </section>
     </section>
   </section>
 
   <section id="documentsView" hidden>
-    <section class="card">
-      <div class="section-head">
-        <div><small>ARCHIVO DOCUMENTAL</small><h2>Documentos</h2></div>
-        <button class="light-btn backHomeBtn">Volver</button>
-      </div>
-      <div class="toolbar">
-        <input id="documentSearch" placeholder="Buscar comercio, concepto o fecha">
-        <button id="retryPendingDocs" class="light-btn" type="button">Reintentar pendientes</button>
-      </div>
-      <div id="documentsStatus" class="data-status" hidden></div>
-      <div id="documentsList"></div>
-    </section>
+    <section class="card"><div class="section-head"><div><small>ARCHIVO DOCUMENTAL</small><h2>Documentos</h2></div><button class="light-btn backHomeBtn">Volver</button></div><div class="toolbar"><input id="documentSearch" placeholder="Buscar comercio, concepto o fecha"><button id="retryPendingDocs" class="light-btn" type="button">Reintentar pendientes</button></div><div id="documentsStatus" class="data-status" hidden></div><div id="documentsList"></div></section>
   </section>
 
   <section id="documentDetailView" hidden>
-    <section class="card">
-      <div class="section-head">
-        <div><small>DOCUMENTO</small><h2 id="documentDetailTitle">Revisar documento</h2></div>
-        <button id="backDocuments" class="light-btn">Volver a documentos</button>
-      </div>
-
-      <div id="documentFileTabs" class="file-tabs"></div>
-      <div class="document-layout">
-        <div>
-          <div id="documentPreviewBox" class="document-preview">
-            <img id="documentPreview" alt="Documento guardado" hidden>
-            <div id="documentPreviewMessage">Selecciona un archivo del documento.</div>
-          </div>
-          <div class="action-row">
-            <button id="downloadDocument" class="light-btn" type="button" disabled>Descargar</button>
-            <button id="retryDocument" type="button" hidden>Reintentar subida</button>
-          </div>
-        </div>
-
-        <div>
-          <form id="documentExpenseForm" class="compact-form">
-            <label>Comercio<input id="docMerchant"></label>
-            <label>Fecha<input type="date" id="docDate"></label>
-            <label>Importe (&euro;)<input type="number" step="0.01" id="docAmount"></label>
-            <label>IVA (&euro;)<input type="number" step="0.01" id="docTax"></label>
-            <label>Concepto<input id="docConcept"></label>
-            <label>Categor&iacute;a<input id="docCategory"></label>
-            <button type="submit">Guardar correcciones</button>
-          </form>
-          <details class="ocr-details">
-            <summary>OCR y metadatos</summary>
-            <div id="documentOcrMeta"></div>
-            <pre id="documentOcrText"></pre>
-          </details>
-        </div>
-      </div>
-    </section>
+    <section class="card"><div class="section-head"><div><small>DOCUMENTO</small><h2 id="documentDetailTitle">Revisar documento</h2></div><button id="backDocuments" class="light-btn">Volver a documentos</button></div><div id="documentFileTabs" class="file-tabs"></div><div class="document-layout"><div><div id="documentPreviewBox" class="document-preview"><img id="documentPreview" alt="Documento guardado" hidden><div id="documentPreviewMessage">Selecciona un archivo.</div></div><div class="action-row"><button id="downloadDocument" class="light-btn" type="button" disabled>Descargar</button><button id="retryDocument" type="button" hidden>Reintentar subida</button></div></div><div><form id="documentExpenseForm" class="compact-form"><label>Comercio<input id="docMerchant"></label><label>Fecha<input type="date" id="docDate"></label><label>Importe (&euro;)<input type="number" step="0.01" id="docAmount"></label><label>IVA (&euro;)<input type="number" step="0.01" id="docTax"></label><label>Concepto<input id="docConcept"></label><label>Categor&iacute;a<input id="docCategory"></label><button type="submit">Guardar correcciones</button></form><details class="ocr-details"><summary>OCR y metadatos</summary><div id="documentOcrMeta"></div><pre id="documentOcrText"></pre></details></div></div></section>
   </section>
 
-  <section id="duplicatesView" hidden>
-    <section class="card">
-      <div class="section-head">
-        <div><small>CONTROL DE CALIDAD</small><h2>Posibles duplicados</h2></div>
-        <button class="light-btn backHomeBtn">Volver</button>
-      </div>
-      <div id="duplicatesList"></div>
-    </section>
-  </section>
+  <section id="duplicatesView" hidden><section class="card"><div class="section-head"><div><small>CONTROL DE CALIDAD</small><h2>Posibles duplicados</h2></div><button class="light-btn backHomeBtn">Volver</button></div><div id="duplicatesList"></div></section></section>
 </section>
 </main>
-
 <div id="toastHost" class="toast-host" aria-live="polite"></div>
-
-<script src="./config.js?v=8.3"></script>
-<script src="./app.js?v=8.3"></script>
-<script src="./scanner.js?v=8.3"></script>
-<script>
-if("serviceWorker" in navigator){
-  navigator.serviceWorker.register("./sw.js?v=8.3").catch(()=>{});
-}
-</script>
+<script src="./config.js?v=8.4"></script>
+<script src="./app.js?v=8.4"></script>
+<script src="./scanner.js?v=8.4"></script>
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("./sw.js?v=8.4").catch(()=>{})}</script>
 </body>
 </html>

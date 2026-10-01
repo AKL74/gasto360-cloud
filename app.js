@@ -1,5 +1,5 @@
 (()=>{
-const GASTO360_R8_3=true;
+const GASTO360_R8_4=true;
 const cfg=window.GASTO360_CONFIG||{};
 const CLOUD_URL="https://akl74.github.io/gasto360-cloud/";
 const BUCKET="gasto360-documents";
@@ -45,7 +45,7 @@ $("homeBtn").onclick=()=>{showView("dashboardView");refreshAll()};
 $("docsBtn").onclick=()=>openDocuments();
 document.querySelectorAll(".backHomeBtn").forEach(b=>b.onclick=()=>{showView("dashboardView");refreshAll()});
 $("backDocuments").onclick=()=>openDocuments();
-$("scanBtn").onclick=()=>showView("scannerView");
+$("scanBtn").onclick=()=>{showView("scannerView");window.gasto360Scanner?.reset?.()};
 $("expenseBtn").onclick=()=>{resetExpenseForm();showView("expenseView")};
 $("refreshBtn").onclick=()=>refreshAll();
 $("docsMetric").onclick=()=>openDocuments();
@@ -342,12 +342,46 @@ function openDuplicates(){
 }
 $("duplicatesList").addEventListener("click",e=>{const b=e.target.closest(".dup-review");if(b)openExpenseDetail(b.dataset.id)});
 
+async function saveScannedExpense(payload,force=false){
+  if(!session)return {ok:false,error:"Sin sesion"};
+  const fields=payload.fields||{},scan=payload.scan||null;
+  const scanSubmission=payload.submissionId||uuid();
+  const expense={
+    owner_id:session.user.id,submission_id:scanSubmission,source:"scanner",
+    date:fields.date,merchant:String(fields.merchant||"").trim(),concept:String(fields.concept||"").trim(),
+    category:fields.category||"Otros",amount:Number(fields.amount),tax:Number(fields.tax||0),
+    payment_method:fields.payment||"Otro",scope:"personal",
+    notes:fields.notes||"Registrado desde Scanner Intelligence R8.4"
+  };
+  if(!expense.date||!expense.merchant||!Number.isFinite(expense.amount))return {ok:false,error:"Faltan fecha, empresa o importe"};
+  if(!force){
+    const similar=await findSimilar(expense);
+    if(similar.length)return {ok:false,duplicate:true,rows:similar};
+  }
+  let data,error;
+  ({data,error}=await sb.from("expenses").insert(expense).select().single());
+  if(error && String(error.message||"").toLowerCase().includes("duplicate")){
+    const r=await sb.from("expenses").select("*").eq("submission_id",scanSubmission).maybeSingle();
+    if(r.error)return {ok:false,error:r.error.message};data=r.data
+  }else if(error)return {ok:false,error:error.message};
+  let pending=0;
+  if(scan){const r=await attachScanDocuments(data.id,scan);pending=r.pending||0}
+  await refreshAll();
+  return {ok:true,expense:data,pending}
+}
+async function getKnownMerchants(){
+  const {data,error}=await sb.from("expenses").select("merchant").not("merchant","is",null).order("created_at",{ascending:false}).limit(500);
+  if(error)return [];
+  return [...new Set((data||[]).map(x=>String(x.merchant||"").trim()).filter(Boolean))]
+}
 window.gasto360Cloud={
   get sb(){return sb},get session(){return session},
   setScan(scan){pendingScan=scan;renderPendingScan()},
-  useScanData(fields,scan){pendingScan=scan;resetExpenseForm();pendingScan=scan;renderPendingScan();Object.entries(fields||{}).forEach(([k,v])=>{const el=$(k);if(el&&v!==undefined&&v!==null&&v!=="")el.value=v});showView("expenseView")},
   openExpense(){resetExpenseForm();showView("expenseView")},
-  toast
+  toast,
+  saveScannedExpense,
+  getKnownMerchants,
+  goHome(){showView("dashboardView");refreshAll()}
 };
 
 init();
