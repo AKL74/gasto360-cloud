@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#173548">
 <meta name="color-scheme" content="light">
-<meta name="gasto360-build" content="R8.4">
+<meta name="gasto360-build" content="R8.4.1">
 <title>Gasto360 Cloud</title>
 <link rel="manifest" href="./manifest.webmanifest">
-<link rel="stylesheet" href="./styles.css?v=8.4">
+<link rel="stylesheet" href="./styles.css?v=8.4.1">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@6/dist/tesseract.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tus-js-client@4/dist/tus.min.js"></script>
 </head>
-<body data-build="R8.4">
+<body data-build="R8.4.1">
 <header class="topbar">
   <div class="brand"><b>Gasto360</b><small>Cloud &middot; Finanzas personales</small></div>
   <div class="top-actions">
@@ -40,6 +40,20 @@
       <div><span class="eyebrow">GASTO360 CLOUD</span><h1>Tu econom&iacute;a, est&eacute;s donde est&eacute;s.</h1><p>Gastos, tickets y facturas unidos en un solo lugar.</p></div>
       <div class="hero-actions"><button id="scanBtn" class="light-btn">Escanear ticket</button><button id="expenseBtn">+ Nuevo gasto</button></div>
     </section>
+
+    <section class="period-bar">
+      <div class="period-copy">
+        <small>PERIODO DEL DASHBOARD</small>
+        <strong id="periodLabel">Mes actual</strong>
+      </div>
+      <div class="period-controls">
+        <button id="prevPeriod" class="light-btn" type="button" aria-label="Mes anterior">&larr;</button>
+        <input id="periodMonth" type="month" aria-label="Elegir mes">
+        <button id="nextPeriod" class="light-btn" type="button" aria-label="Mes siguiente">&rarr;</button>
+        <button id="currentPeriod" class="light-btn" type="button">Mes actual</button>
+      </div>
+    </section>
+
     <section class="metrics-grid">
       <article class="card metric"><small>GASTO DEL MES</small><strong id="month-total">0,00 &euro;</strong></article>
       <article class="card metric"><small>MOVIMIENTOS</small><strong id="month-count">0</strong></article>
@@ -165,9 +179,9 @@
 </section>
 </main>
 <div id="toastHost" class="toast-host" aria-live="polite"></div>
-<script src="./config.js?v=8.4"></script>
-<script src="./app.js?v=8.4"></script>
-<script src="./scanner.js?v=8.4"></script>
-<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("./sw.js?v=8.4").catch(()=>{})}</script>
+<script src="./config.js?v=8.4.1"></script>
+<script src="./app.js?v=8.4.1"></script>
+<script src="./scanner.js?v=8.4.1"></script>
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("./sw.js?v=8.4.1").catch(()=>{})}</script>
 </body>
 </html>

@@ -76,11 +76,69 @@ function imageQuality(){
   if(!window.cv||!cv.Mat)return {blur:null,brightness:null};
   let a,g,lap;try{a=cv.imread(src);g=new cv.Mat();lap=new cv.Mat();cv.cvtColor(a,g,cv.COLOR_RGBA2GRAY);const mean=cv.mean(g)[0];cv.Laplacian(g,lap,cv.CV_64F);const m=new cv.Mat(),sd=new cv.Mat();cv.meanStdDev(lap,m,sd);const variance=sd.doubleAt(0,0)**2;m.delete();sd.delete();return {blur:variance,brightness:mean}}catch{return {blur:null,brightness:null}}finally{[a,g,lap].forEach(x=>{try{x&&x.delete()}catch{}})}
 }
-async function loadFile(f){
-  if(!f)return;reset();file=f;setStep(2);$("cropHint").textContent="Analizando la foto y buscando los bordes...";
-  const im=new Image();im.onload=async()=>{const scale=Math.min(1,1900/Math.max(im.naturalWidth,im.naturalHeight));src.width=Math.round(im.naturalWidth*scale);src.height=Math.round(im.naturalHeight*scale);sctx.drawImage(im,0,0,src.width,src.height);defaultPts();await waitCV(1800);const q=imageQuality();let qualityMsg=[];let kind="ok";if(q.blur!==null&&q.blur<55){qualityMsg.push("La foto parece algo borrosa");kind="warn"}if(q.brightness!==null&&(q.brightness<55||q.brightness>225)){qualityMsg.push("La iluminación puede mejorarse");kind="warn"}if(qualityMsg.length)setCropBanner(qualityMsg.join(". ")+"; puedes repetir la foto o continuar.",kind);await autoEdges();$("cropHint").textContent="Mueve un punto solo si la línea amarilla no coincide con el borde real del ticket."};im.onerror=()=>{setStep(1);window.gasto360Cloud.toast("No se pudo abrir esa imagen.","error")};im.src=URL.createObjectURL(f)
+function clearCaptureState(){
+  file=null;pts=[];drag=-1;correctedBlob=null;ocrText="";ocrConfidence=0;lastFields={};lastExtraction=null;
+  scanSubmissionId=crypto.randomUUID?crypto.randomUUID():String(Date.now());
+  saving=false;cropConfidence=0;
+  $("scanDuplicateWarning").hidden=true;
+  $("saveScanBtn").disabled=false;$("saveScanBtn").textContent="Guardar gasto + ticket";
 }
-$("cameraFile").onchange=e=>loadFile(e.target.files[0]);$("galleryFile").onchange=e=>loadFile(e.target.files[0]);$("retakeBtn").onclick=reset;$("autoEdges").onclick=autoEdges;$("acceptCrop").onclick=()=>processScan();
+async function decodeCaptureToSource(f){
+  let bitmap=null;
+  if("createImageBitmap" in window){
+    try{bitmap=await createImageBitmap(f,{imageOrientation:"from-image"})}catch(e){console.warn("createImageBitmap fallo",e)}
+  }
+  if(bitmap){
+    const scale=Math.min(1,1900/Math.max(bitmap.width,bitmap.height));
+    src.width=Math.max(2,Math.round(bitmap.width*scale));src.height=Math.max(2,Math.round(bitmap.height*scale));
+    sctx.clearRect(0,0,src.width,src.height);sctx.drawImage(bitmap,0,0,src.width,src.height);
+    try{bitmap.close()}catch{}
+    return;
+  }
+  const dataUrl=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(r.error||new Error("No se pudo leer la foto"));r.readAsDataURL(f)});
+  await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>{const scale=Math.min(1,1900/Math.max(im.naturalWidth,im.naturalHeight));src.width=Math.max(2,Math.round(im.naturalWidth*scale));src.height=Math.max(2,Math.round(im.naturalHeight*scale));sctx.clearRect(0,0,src.width,src.height);sctx.drawImage(im,0,0,src.width,src.height);resolve()};im.onerror=()=>reject(new Error("Formato de imagen no compatible"));im.src=dataUrl})
+}
+async function loadFile(f){
+  if(!f){window.gasto360Cloud.toast("La cámara no entregó ninguna foto. Inténtalo de nuevo.","warn");return}
+  clearCaptureState();
+  file=f;
+  sessionStorage.removeItem("gasto360.capture.pending");
+  setStep(2);
+  $("cropHint").innerHTML='<span class="capture-return-status"><span class="mini-spinner"></span>Foto recibida. Preparando encuadre...</span>';
+  $("qualityBanner").hidden=true;
+  try{
+    await decodeCaptureToSource(f);
+    defaultPts();
+    $("cropHint").textContent="Analizando la foto y buscando los bordes...";
+    await waitCV(1800);
+    const q=imageQuality();let qualityMsg=[],kind="ok";
+    if(q.blur!==null&&q.blur<55){qualityMsg.push("La foto parece algo borrosa");kind="warn"}
+    if(q.brightness!==null&&(q.brightness<55||q.brightness>225)){qualityMsg.push("La iluminación puede mejorarse");kind="warn"}
+    if(qualityMsg.length)setCropBanner(qualityMsg.join(". ")+"; puedes repetir la foto o continuar.",kind);
+    await autoEdges();
+    $("cropHint").textContent="Foto recibida correctamente. Mueve un punto solo si la línea amarilla no coincide con el borde real del ticket.";
+  }catch(err){
+    console.error(err);
+    setStep(1);
+    window.gasto360Cloud.toast("La foto se recibió, pero no pudimos abrirla: "+(err.message||err),"error",6500);
+  }
+}
+$("cameraFile").addEventListener("click",e=>{e.currentTarget.value="";sessionStorage.setItem("gasto360.capture.pending","camera")});
+$("galleryFile").addEventListener("click",e=>{e.currentTarget.value="";sessionStorage.setItem("gasto360.capture.pending","gallery")});
+$("cameraFile").addEventListener("change",e=>loadFile(e.currentTarget.files&&e.currentTarget.files[0]));
+$("galleryFile").addEventListener("change",e=>loadFile(e.currentTarget.files&&e.currentTarget.files[0]));
+$("cameraFile").addEventListener("cancel",()=>sessionStorage.removeItem("gasto360.capture.pending"));
+$("galleryFile").addEventListener("cancel",()=>sessionStorage.removeItem("gasto360.capture.pending"));
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState==="visible" && sessionStorage.getItem("gasto360.capture.pending")){
+    setTimeout(()=>{
+      if(sessionStorage.getItem("gasto360.capture.pending") && !file){
+        window.gasto360Cloud.toast("Hemos vuelto de la cámara. Si no aparece la foto en unos segundos, pulsa Abrir cámara de nuevo.","warn",5000)
+      }
+    },1200)
+  }
+});
+$("retakeBtn").onclick=reset;$("autoEdges").onclick=autoEdges;$("acceptCrop").onclick=()=>processScan();
 
 function canvasBlob(c,q=.94){return new Promise(res=>c.toBlob(res,"image/jpeg",q))}
 async function correctPerspective(){
@@ -184,7 +242,7 @@ $("editItemsBtn").onclick=()=>{const txt=(lastExtraction?.items||[]).map(x=>x.na
 
 function buildPayload(){
   const fields={merchant:$("ocrMerchant").value.trim(),date:$("ocrDate").value,amount:Number($("ocrAmount").value),tax:Number($("ocrTax").value||0),concept:$("ocrConcept").value.trim(),category:$("ocrCategory").value,payment:$("ocrPayment").value};
-  const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.4",cropConfidence}};
+  const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.4.1",cropConfidence}};
   return {fields,scan,submissionId:scanSubmissionId}
 }
 async function doSave(force=false){

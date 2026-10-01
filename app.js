@@ -1,11 +1,11 @@
 (()=>{
-const GASTO360_R8_4=true;
+const GASTO360_R8_4_1=true;
 const cfg=window.GASTO360_CONFIG||{};
 const CLOUD_URL="https://akl74.github.io/gasto360-cloud/";
 const BUCKET="gasto360-documents";
 const $=id=>document.getElementById(id);
 
-let sb=null,session=null,pendingScan=null,currentExpenses=[],currentDocs=[],currentDocGroup=null;
+let sb=null,session=null,pendingScan=null,currentExpenses=[],currentDocs=[],documentExpenses=[],currentDocGroup=null;
 let submissionId=null,isSaving=false,forceDuplicateOnce=false,refreshTimer=null;
 
 const views=["dashboardView","expenseView","expenseDetailView","scannerView","documentsView","documentDetailView","duplicatesView"];
@@ -19,6 +19,37 @@ function uuid(){return crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Ma
 function toast(msg,type="ok",ms=3600){const el=document.createElement("div");el.className=`toast ${type}`;el.textContent=msg;$("toastHost").appendChild(el);setTimeout(()=>el.remove(),ms)}
 function cleanAuthUrl(){const u=new URL(location.href);if(u.searchParams.has("code")||u.searchParams.has("error")||location.hash)history.replaceState({},document.title,CLOUD_URL)}
 function authError(msg){visible("login",false);visible("app",false);visible("authError",true);$("authErrorText").textContent=msg}
+
+
+function currentPeriodValue(){
+  const d=new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+}
+let selectedPeriod=localStorage.getItem("gasto360.dashboard.period")||currentPeriodValue();
+
+function periodLabel(period){
+  const [y,m]=String(period).split("-").map(Number);
+  if(!y||!m)return period;
+  return new Intl.DateTimeFormat("es-ES",{month:"long",year:"numeric"}).format(new Date(y,m-1,1)).replace(/^./,c=>c.toUpperCase());
+}
+function shiftPeriod(period,delta){
+  const [y,m]=period.split("-").map(Number);
+  const d=new Date(y,m-1+delta,1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+}
+function updatePeriodUI(){
+  if(!$("periodMonth"))return;
+  $("periodMonth").value=selectedPeriod;
+  $("periodLabel").textContent=periodLabel(selectedPeriod);
+  $("nextPeriod").disabled=selectedPeriod>=currentPeriodValue();
+}
+function setPeriod(period){
+  if(!/^\d{4}-\d{2}$/.test(String(period||"")))return;
+  selectedPeriod=period;
+  localStorage.setItem("gasto360.dashboard.period",selectedPeriod);
+  updatePeriodUI();
+  refreshAll();
+}
 
 async function init(){
   if(!cfg.supabaseUrl||cfg.supabaseUrl.includes("TU-PROYECTO")||!cfg.supabaseAnonKey){visible("setup",true);return}
@@ -35,7 +66,7 @@ function renderAuth(){
   const logged=!!session;
   visible("authError",false);visible("login",!logged);visible("app",logged);
   ["logout","homeBtn","docsBtn"].forEach(id=>visible(id,logged));visible("signedAs",logged);
-  if(logged){$("signedAs").textContent=session.user.email||"Sesion activa";showView("dashboardView");refreshAll();cleanAuthUrl()}
+  if(logged){$("signedAs").textContent=session.user.email||"Sesion activa";updatePeriodUI();showView("dashboardView");refreshAll();cleanAuthUrl()}
 }
 
 $("google").onclick=async()=>{const r=await sb.auth.signInWithOAuth({provider:"google",options:{redirectTo:CLOUD_URL}});if(r.error)authError("No se pudo iniciar Google: "+r.error.message)};
@@ -50,6 +81,11 @@ $("expenseBtn").onclick=()=>{resetExpenseForm();showView("expenseView")};
 $("refreshBtn").onclick=()=>refreshAll();
 $("docsMetric").onclick=()=>openDocuments();
 $("duplicatesMetric").onclick=()=>openDuplicates();
+$("periodMonth").onchange=e=>setPeriod(e.target.value);
+$("prevPeriod").onclick=()=>setPeriod(shiftPeriod(selectedPeriod,-1));
+$("nextPeriod").onclick=()=>{const n=shiftPeriod(selectedPeriod,1);if(n<=currentPeriodValue())setPeriod(n)};
+$("currentPeriod").onclick=()=>setPeriod(currentPeriodValue());
+
 
 function setDataStatus(msg,isError=false){
   clearTimeout(refreshTimer);
@@ -75,8 +111,14 @@ async function refreshAll(){
 }
 
 async function loadExpenses(){
-  const now=new Date(),period=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
-  const {data,error}=await sb.from("expenses").select("*").gte("date",period+"-01").order("created_at",{ascending:false});
+  const [y,m]=selectedPeriod.split("-").map(Number);
+  const next=new Date(y,m,1);
+  const nextPeriod=`${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,"0")}`;
+  const {data,error}=await sb.from("expenses").select("*")
+    .gte("date",selectedPeriod+"-01")
+    .lt("date",nextPeriod+"-01")
+    .order("date",{ascending:false})
+    .order("created_at",{ascending:false});
   if(error)throw error;
   currentExpenses=data||[];
   return currentExpenses
@@ -87,6 +129,12 @@ async function loadDocuments(render=true){
   currentDocs=data||[];
   if(render)renderDocuments();
   return currentDocs
+}
+async function loadDocumentExpenses(){
+  const {data,error}=await sb.from("expenses").select("*").order("date",{ascending:false}).limit(2000);
+  if(error)throw error;
+  documentExpenses=data||[];
+  return documentExpenses
 }
 function findDuplicateGroups(rows=currentExpenses){
   const map=new Map();
@@ -100,8 +148,10 @@ function findDuplicateGroups(rows=currentExpenses){
 function renderDashboard(){
   const total=currentExpenses.reduce((a,x)=>a+Number(x.amount||0),0);
   $("month-total").textContent=money(total);$("month-count").textContent=String(currentExpenses.length);
-  $("docs-count").textContent=String(new Set(currentDocs.map(d=>d.expense_id).filter(Boolean)).size);
-  const pending=currentDocs.filter(d=>d.upload_status!=="stored").length;
+  const periodExpenseIds=new Set(currentExpenses.map(x=>x.id));
+  const periodDocs=currentDocs.filter(d=>periodExpenseIds.has(d.expense_id));
+  $("docs-count").textContent=String(new Set(periodDocs.map(d=>d.expense_id).filter(Boolean)).size);
+  const pending=periodDocs.filter(d=>d.upload_status!=="stored").length;
   $("pending-docs-text").textContent=`${pending} pendiente${pending===1?"":"s"}`;
   $("duplicate-count").textContent=String(findDuplicateGroups().length);
   $("expenses").innerHTML=currentExpenses.length?currentExpenses.slice(0,40).map(x=>{
@@ -282,13 +332,13 @@ $("deleteExpenseBtn").onclick=async()=>{
 
 async function openDocuments(){
   showView("documentsView");setDocumentsStatus("Cargando documentos...");
-  try{await Promise.all([loadDocuments(false),loadExpenses()]);renderDocuments();setDocumentsStatus("")}catch(err){setDocumentsStatus("No se pudieron cargar los documentos: "+err.message,true)}
+  try{await Promise.all([loadDocuments(false),loadDocumentExpenses()]);renderDocuments();setDocumentsStatus("")}catch(err){setDocumentsStatus("No se pudieron cargar los documentos: "+err.message,true)}
 }
 function groupDocuments(){
   const map=new Map();for(const d of currentDocs){const k=d.expense_id||"sin-gasto";if(!map.has(k))map.set(k,[]);map.get(k).push(d)}return [...map.entries()]
 }
 function renderDocuments(){
-  const q=norm($("documentSearch").value),expMap=new Map(currentExpenses.map(x=>[x.id,x]));
+  const q=norm($("documentSearch").value),expMap=new Map(documentExpenses.map(x=>[x.id,x]));
   const groups=groupDocuments().filter(([id])=>{if(!q)return true;const x=expMap.get(id);return norm([x?.merchant,x?.concept,x?.date].join(" ")).includes(q)});
   $("documentsList").innerHTML=groups.length?groups.map(([id,docs])=>{
     const x=expMap.get(id),pending=docs.filter(d=>d.upload_status!=="stored").length,ocr=docs.some(d=>d.ocr_text);
@@ -311,7 +361,7 @@ $("retryPendingDocs").onclick=async()=>{
 
 async function openDocumentGroup(expenseId){
   const docs=currentDocs.filter(d=>d.expense_id===expenseId);
-  const x=currentExpenses.find(e=>e.id===expenseId);
+  const x=currentExpenses.find(e=>e.id===expenseId)||documentExpenses.find(e=>e.id===expenseId);
   if(!docs.length){toast("No hay documentos vinculados.","warn");return}
   currentDocGroup={expense:x,docs,selected:null};showView("documentDetailView");
   $("documentDetailTitle").textContent=x?`${x.merchant} · ${money(x.amount)}`:"Documento";
@@ -351,7 +401,7 @@ async function saveScannedExpense(payload,force=false){
     date:fields.date,merchant:String(fields.merchant||"").trim(),concept:String(fields.concept||"").trim(),
     category:fields.category||"Otros",amount:Number(fields.amount),tax:Number(fields.tax||0),
     payment_method:fields.payment||"Otro",scope:"personal",
-    notes:fields.notes||"Registrado desde Scanner Intelligence R8.4"
+    notes:fields.notes||"Registrado desde Scanner Intelligence R8.4.1"
   };
   if(!expense.date||!expense.merchant||!Number.isFinite(expense.amount))return {ok:false,error:"Faltan fecha, empresa o importe"};
   if(!force){
