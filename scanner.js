@@ -2,7 +2,7 @@
 const $=id=>document.getElementById(id);
 const src=$("srcCanvas"),ov=$("overlayCanvas"),dst=$("dstCanvas"),reviewCanvas=$("reviewCanvas"),sctx=src.getContext("2d"),octx=ov.getContext("2d");
 let file=null,pts=[],drag=-1,correctedBlob=null,ocrText="",ocrConfidence=0,lastFields={},lastExtraction=null,scanSubmissionId=null,saving=false;
-let cropConfidence=0,knownMerchants=[];
+let cropConfidence=0,knownMerchants=[];let mediaStream=null,cameraStarting=false,currentFacing="environment";
 
 const normalize=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[^A-Z0-9%€.,:/\- ]+/g," ").replace(/\s+/g," ").trim();
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -17,9 +17,9 @@ function setStep(n){
 function reset(){
   file=null;pts=[];drag=-1;correctedBlob=null;ocrText="";ocrConfidence=0;lastFields={};lastExtraction=null;scanSubmissionId=crypto.randomUUID?crypto.randomUUID():String(Date.now());saving=false;cropConfidence=0;
   src.width=src.height=ov.width=ov.height=dst.width=dst.height=reviewCanvas.width=reviewCanvas.height=1;
-  $("cameraFile").value="";$("galleryFile").value="";$("scanDuplicateWarning").hidden=true;$("saveScanBtn").disabled=false;$("saveScanBtn").textContent="Guardar gasto + ticket";setStep(1)
+  stopCamera();$("galleryFile").value="";$("scanDuplicateWarning").hidden=true;$("saveScanBtn").disabled=false;$("saveScanBtn").textContent="Guardar gasto + ticket";$("captureLauncher").hidden=false;$("liveCameraPanel").hidden=true;$("cameraPermissionHelp").hidden=true;setStep(1)
 }
-window.gasto360Scanner={reset};
+
 
 async function waitCV(ms=6000){const t=Date.now();while(Date.now()-t<ms){if(window.cv&&cv.Mat)return true;await sleep(120)}return false}
 function sortPts(a){const sum=a.map(p=>p.x+p.y),dif=a.map(p=>p.x-p.y);return[a[sum.indexOf(Math.min(...sum))],a[dif.indexOf(Math.max(...dif))],a[sum.indexOf(Math.max(...sum))],a[dif.indexOf(Math.min(...dif))]]}
@@ -98,11 +98,101 @@ async function decodeCaptureToSource(f){
   const dataUrl=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(r.error||new Error("No se pudo leer la foto"));r.readAsDataURL(f)});
   await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>{const scale=Math.min(1,1900/Math.max(im.naturalWidth,im.naturalHeight));src.width=Math.max(2,Math.round(im.naturalWidth*scale));src.height=Math.max(2,Math.round(im.naturalHeight*scale));sctx.clearRect(0,0,src.width,src.height);sctx.drawImage(im,0,0,src.width,src.height);resolve()};im.onerror=()=>reject(new Error("Formato de imagen no compatible"));im.src=dataUrl})
 }
+
+function stopCamera(){
+  if(mediaStream){
+    for(const track of mediaStream.getTracks()){try{track.stop()}catch{}}
+    mediaStream=null;
+  }
+  const v=$("liveVideo");
+  if(v){try{v.pause()}catch{};v.srcObject=null}
+  cameraStarting=false;
+  if($("captureLiveBtn"))$("captureLiveBtn").disabled=true;
+}
+async function enumerateRearCameraSupport(){
+  try{
+    const devices=await navigator.mediaDevices.enumerateDevices();
+    const vids=devices.filter(d=>d.kind==="videoinput");
+    $("switchCameraBtn").hidden=vids.length<2;
+  }catch{$("switchCameraBtn").hidden=true}
+}
+async function startCamera(){
+  if(cameraStarting)return;
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    $("cameraPermissionHelp").hidden=false;
+    window.gasto360Cloud.toast("Este navegador no permite cámara integrada. Usa Elegir de galería.","warn",6000);
+    return;
+  }
+  cameraStarting=true;
+  stopCamera();
+  cameraStarting=true;
+  $("captureLauncher").hidden=true;
+  $("liveCameraPanel").hidden=false;
+  $("cameraPermissionHelp").hidden=true;
+  $("cameraStatus").textContent="Solicitando acceso a la cámara...";
+  $("captureLiveBtn").disabled=true;
+  try{
+    let stream;
+    const preferred={audio:false,video:{facingMode:{ideal:currentFacing},width:{ideal:1920},height:{ideal:2560}}};
+    try{
+      stream=await navigator.mediaDevices.getUserMedia(preferred);
+    }catch(first){
+      console.warn("preferred camera constraints failed",first);
+      stream=await navigator.mediaDevices.getUserMedia({audio:false,video:true});
+    }
+    mediaStream=stream;
+    const video=$("liveVideo");
+    video.srcObject=stream;
+    await new Promise((resolve,reject)=>{
+      const ready=()=>{cleanup();resolve()};
+      const fail=()=>{cleanup();reject(new Error("No se pudo iniciar la vista previa"))};
+      const cleanup=()=>{video.removeEventListener("loadedmetadata",ready);video.removeEventListener("error",fail)};
+      video.addEventListener("loadedmetadata",ready,{once:true});
+      video.addEventListener("error",fail,{once:true});
+      if(video.readyState>=1){cleanup();resolve()}
+    });
+    await video.play();
+    $("cameraStatus").textContent="Cámara lista. Encaja el ticket completo y pulsa Capturar.";
+    $("captureLiveBtn").disabled=false;
+    await enumerateRearCameraSupport();
+  }catch(err){
+    console.error(err);
+    stopCamera();
+    $("liveCameraPanel").hidden=true;
+    $("captureLauncher").hidden=false;
+    $("cameraPermissionHelp").hidden=false;
+    const denied=err?.name==="NotAllowedError"||err?.name==="PermissionDeniedError";
+    window.gasto360Cloud.toast(denied?"Debes permitir la cámara a Gasto360 en Samsung Internet.":"No pudimos abrir la cámara: "+(err.message||err),"error",7000);
+  }finally{
+    cameraStarting=false;
+  }
+}
+async function captureLiveFrame(){
+  const video=$("liveVideo");
+  const w=video.videoWidth,h=video.videoHeight;
+  if(!mediaStream||!w||!h){window.gasto360Cloud.toast("La cámara todavía no está lista.","warn");return}
+  $("captureLiveBtn").disabled=true;
+  $("cameraStatus").textContent="Capturando ticket...";
+  const c=document.createElement("canvas");c.width=w;c.height=h;
+  const ctx=c.getContext("2d",{alpha:false});
+  ctx.drawImage(video,0,0,w,h);
+  const blob=await new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error("No se pudo crear la fotografía")),"image/jpeg",.96));
+  const captured=new File([blob],`ticket_${new Date().toISOString().replace(/[:.]/g,"-")}.jpg`,{type:"image/jpeg",lastModified:Date.now()});
+  stopCamera();
+  $("liveCameraPanel").hidden=true;
+  $("captureLauncher").hidden=false;
+  await loadFile(captured);
+}
+async function switchCamera(){
+  currentFacing=currentFacing==="environment"?"user":"environment";
+  stopCamera();
+  await startCamera();
+}
+
 async function loadFile(f){
   if(!f){window.gasto360Cloud.toast("La cámara no entregó ninguna foto. Inténtalo de nuevo.","warn");return}
   clearCaptureState();
   file=f;
-  sessionStorage.removeItem("gasto360.capture.pending");
   setStep(2);
   $("cropHint").innerHTML='<span class="capture-return-status"><span class="mini-spinner"></span>Foto recibida. Preparando encuadre...</span>';
   $("qualityBanner").hidden=true;
@@ -123,21 +213,12 @@ async function loadFile(f){
     window.gasto360Cloud.toast("La foto se recibió, pero no pudimos abrirla: "+(err.message||err),"error",6500);
   }
 }
-$("cameraFile").addEventListener("click",e=>{e.currentTarget.value="";sessionStorage.setItem("gasto360.capture.pending","camera")});
-$("galleryFile").addEventListener("click",e=>{e.currentTarget.value="";sessionStorage.setItem("gasto360.capture.pending","gallery")});
-$("cameraFile").addEventListener("change",e=>loadFile(e.currentTarget.files&&e.currentTarget.files[0]));
+$("liveCameraBtn").onclick=()=>startCamera();
+$("captureLiveBtn").onclick=()=>captureLiveFrame();
+$("cancelLiveCamera").onclick=()=>{stopCamera();$("liveCameraPanel").hidden=true;$("captureLauncher").hidden=false;$("cameraStatus").textContent="Preparando cámara trasera..."};
+$("switchCameraBtn").onclick=()=>switchCamera();
+$("galleryFile").addEventListener("click",e=>{e.currentTarget.value=""});
 $("galleryFile").addEventListener("change",e=>loadFile(e.currentTarget.files&&e.currentTarget.files[0]));
-$("cameraFile").addEventListener("cancel",()=>sessionStorage.removeItem("gasto360.capture.pending"));
-$("galleryFile").addEventListener("cancel",()=>sessionStorage.removeItem("gasto360.capture.pending"));
-document.addEventListener("visibilitychange",()=>{
-  if(document.visibilityState==="visible" && sessionStorage.getItem("gasto360.capture.pending")){
-    setTimeout(()=>{
-      if(sessionStorage.getItem("gasto360.capture.pending") && !file){
-        window.gasto360Cloud.toast("Hemos vuelto de la cámara. Si no aparece la foto en unos segundos, pulsa Abrir cámara de nuevo.","warn",5000)
-      }
-    },1200)
-  }
-});
 $("retakeBtn").onclick=reset;$("autoEdges").onclick=autoEdges;$("acceptCrop").onclick=()=>processScan();
 
 function canvasBlob(c,q=.94){return new Promise(res=>c.toBlob(res,"image/jpeg",q))}
@@ -242,7 +323,7 @@ $("editItemsBtn").onclick=()=>{const txt=(lastExtraction?.items||[]).map(x=>x.na
 
 function buildPayload(){
   const fields={merchant:$("ocrMerchant").value.trim(),date:$("ocrDate").value,amount:Number($("ocrAmount").value),tax:Number($("ocrTax").value||0),concept:$("ocrConcept").value.trim(),category:$("ocrCategory").value,payment:$("ocrPayment").value};
-  const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.4.1",cropConfidence}};
+  const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.4.2",cropConfidence}};
   return {fields,scan,submissionId:scanSubmissionId}
 }
 async function doSave(force=false){
@@ -257,5 +338,10 @@ async function doSave(force=false){
   finally{saving=false;$("saveScanBtn").disabled=false;$("saveScanBtn").textContent="Guardar gasto + ticket"}
 }
 $("saveScanBtn").onclick=()=>doSave(false);$("forceScanSave").onclick=()=>{ $("scanDuplicateWarning").hidden=true;doSave(true)};$("cancelScanDuplicate").onclick=()=>{$("scanDuplicateWarning").hidden=true};
+
+["scannerExit","homeBtn","docsBtn","logout"].forEach(id=>{const el=$(id);if(el)el.addEventListener("click",()=>stopCamera())});
+window.addEventListener("pagehide",()=>stopCamera());
+window.addEventListener("beforeunload",()=>stopCamera());
+window.gasto360Scanner={reset,stopCamera,startCamera};
 reset();
 })();

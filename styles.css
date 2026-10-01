@@ -27,3 +27,26 @@ main{max-width:1160px;margin:auto;padding:20px}.card,.login-card{background:#fff
 @media(max-width:700px){
   .period-bar{margin:12px;display:block}.period-copy{margin-bottom:10px}.period-controls{display:grid;grid-template-columns:auto 1fr auto}.period-controls input[type="month"]{width:100%;min-width:0}.period-controls #currentPeriod{grid-column:1/-1;width:100%}
 }
+
+.camera-note{margin:12px 0 0;text-align:center;color:var(--muted);font-size:12px}
+.live-camera-panel{display:grid;gap:12px}
+.camera-status{padding:10px 12px;border-radius:11px;background:#edf4ef;color:#315d48;font-weight:700;text-align:center}
+.live-video-wrap{position:relative;background:#050708;border-radius:17px;overflow:hidden;min-height:420px;display:grid;place-items:center}
+.live-video-wrap video{width:100%;height:min(68vh,720px);object-fit:cover;background:#000}
+.ticket-guide{position:absolute;inset:7% 12%;border:1px solid #ffffff8a;border-radius:10px;pointer-events:none}
+.ticket-guide small{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);background:#0009;color:#fff;padding:6px 9px;border-radius:999px;white-space:nowrap;font-size:11px}
+.guide-corner{position:absolute;width:42px;height:42px;border-color:#fff;border-style:solid}
+.guide-corner.tl{left:-2px;top:-2px;border-width:4px 0 0 4px;border-radius:9px 0 0 0}
+.guide-corner.tr{right:-2px;top:-2px;border-width:4px 4px 0 0;border-radius:0 9px 0 0}
+.guide-corner.bl{left:-2px;bottom:-2px;border-width:0 0 4px 4px;border-radius:0 0 0 9px}
+.guide-corner.br{right:-2px;bottom:-2px;border-width:0 4px 4px 0;border-radius:0 0 9px 0}
+.live-camera-actions{display:grid;grid-template-columns:.7fr 1.3fr;gap:10px}
+.live-camera-actions button{min-height:58px;font-size:16px}
+.text-camera-btn{background:transparent;color:var(--navy);min-height:34px;padding:5px}
+.camera-help{padding:14px;border-radius:12px;background:#fff4dc;color:#805a16;display:grid;gap:5px}
+@media(max-width:700px){
+  .live-video-wrap{min-height:0;border-radius:12px;margin:0 -15px}
+  .live-video-wrap video{height:calc(100vh - 315px);min-height:430px;max-height:720px;object-fit:cover}
+  .ticket-guide{inset:6% 9%}
+  .live-camera-actions{position:sticky;bottom:0;background:#fff;margin:0 -15px -15px;padding:12px 15px calc(12px + env(safe-area-inset-bottom));z-index:5}
+}

@@ -1,5 +1,5 @@
 (()=>{
-const GASTO360_R8_4_1=true;
+const GASTO360_R8_4_2=true;
 const cfg=window.GASTO360_CONFIG||{};
 const CLOUD_URL="https://akl74.github.io/gasto360-cloud/";
 const BUCKET="gasto360-documents";
@@ -71,9 +71,9 @@ function renderAuth(){
 
 $("google").onclick=async()=>{const r=await sb.auth.signInWithOAuth({provider:"google",options:{redirectTo:CLOUD_URL}});if(r.error)authError("No se pudo iniciar Google: "+r.error.message)};
 $("retryAuth").onclick=()=>location.href=CLOUD_URL;
-$("logout").onclick=async()=>{if(sb)await sb.auth.signOut();location.href=CLOUD_URL};
-$("homeBtn").onclick=()=>{showView("dashboardView");refreshAll()};
-$("docsBtn").onclick=()=>openDocuments();
+$("logout").onclick=async()=>{window.gasto360Scanner?.stopCamera?.();if(sb)await sb.auth.signOut();location.href=CLOUD_URL};
+$("homeBtn").onclick=()=>{window.gasto360Scanner?.stopCamera?.();showView("dashboardView");refreshAll()};
+$("docsBtn").onclick=()=>{window.gasto360Scanner?.stopCamera?.();openDocuments()};
 document.querySelectorAll(".backHomeBtn").forEach(b=>b.onclick=()=>{showView("dashboardView");refreshAll()});
 $("backDocuments").onclick=()=>openDocuments();
 $("scanBtn").onclick=()=>{showView("scannerView");window.gasto360Scanner?.reset?.()};
@@ -401,7 +401,7 @@ async function saveScannedExpense(payload,force=false){
     date:fields.date,merchant:String(fields.merchant||"").trim(),concept:String(fields.concept||"").trim(),
     category:fields.category||"Otros",amount:Number(fields.amount),tax:Number(fields.tax||0),
     payment_method:fields.payment||"Otro",scope:"personal",
-    notes:fields.notes||"Registrado desde Scanner Intelligence R8.4.1"
+    notes:fields.notes||"Registrado desde Scanner Intelligence R8.4.2"
   };
   if(!expense.date||!expense.merchant||!Number.isFinite(expense.amount))return {ok:false,error:"Faltan fecha, empresa o importe"};
   if(!force){

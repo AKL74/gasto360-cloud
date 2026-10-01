@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#173548">
 <meta name="color-scheme" content="light">
-<meta name="gasto360-build" content="R8.4.1">
+<meta name="gasto360-build" content="R8.4.2">
 <title>Gasto360 Cloud</title>
 <link rel="manifest" href="./manifest.webmanifest">
-<link rel="stylesheet" href="./styles.css?v=8.4.1">
+<link rel="stylesheet" href="./styles.css?v=8.4.2">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@6/dist/tesseract.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tus-js-client@4/dist/tus.min.js"></script>
 </head>
-<body data-build="R8.4.1">
+<body data-build="R8.4.2">
 <header class="topbar">
   <div class="brand"><b>Gasto360</b><small>Cloud &middot; Finanzas personales</small></div>
   <div class="top-actions">
@@ -106,11 +106,36 @@
 
       <section id="scanStep1" class="scan-stage">
         <div class="stage-title"><h2>Haz una foto n&iacute;tida del ticket</h2><p>Col&oacute;calo completo, sin cortar bordes y evitando sombras fuertes.</p></div>
-        <div class="capture-actions">
-          <label class="capture-button">Abrir c&aacute;mara<input id="cameraFile" type="file" accept="image/*" capture="environment"></label>
-          <label class="capture-button secondary">Elegir de galer&iacute;a<input id="galleryFile" type="file" accept="image/*"></label>
+        <div id="captureLauncher">
+          <div class="capture-actions">
+            <button id="liveCameraBtn" class="capture-button" type="button">Abrir c&aacute;mara dentro de Gasto360</button>
+            <label class="capture-button secondary">Elegir de galer&iacute;a<input id="galleryFile" type="file" accept="image/*"></label>
+          </div>
+          <div class="capture-tips"><span>✓ Ticket completo</span><span>✓ Buena luz</span><span>✓ C&aacute;mara paralela</span></div>
+          <p class="camera-note">La c&aacute;mara se abrir&aacute; dentro de la app para no perder el proceso.</p>
         </div>
-        <div class="capture-tips"><span>✓ Ticket completo</span><span>✓ Buena luz</span><span>✓ C&aacute;mara paralela</span></div>
+
+        <div id="liveCameraPanel" class="live-camera-panel" hidden>
+          <div id="cameraStatus" class="camera-status">Preparando c&aacute;mara trasera...</div>
+          <div class="live-video-wrap">
+            <video id="liveVideo" autoplay muted playsinline></video>
+            <div class="ticket-guide">
+              <span class="guide-corner tl"></span><span class="guide-corner tr"></span>
+              <span class="guide-corner bl"></span><span class="guide-corner br"></span>
+              <small>Coloca el ticket dentro del marco</small>
+            </div>
+          </div>
+          <div class="live-camera-actions">
+            <button id="cancelLiveCamera" class="light-btn" type="button">Cancelar</button>
+            <button id="captureLiveBtn" type="button" disabled>Capturar ticket</button>
+          </div>
+          <button id="switchCameraBtn" class="text-camera-btn" type="button" hidden>Cambiar c&aacute;mara</button>
+        </div>
+
+        <div id="cameraPermissionHelp" class="camera-help" hidden>
+          <b>Gasto360 necesita permiso para usar la c&aacute;mara.</b>
+          <span>Autoriza la c&aacute;mara en Samsung Internet y vuelve a pulsar &ldquo;Abrir c&aacute;mara&rdquo;.</span>
+        </div>
       </section>
 
       <section id="scanStep2" class="scan-stage" hidden>
@@ -179,9 +204,9 @@
 </section>
 </main>
 <div id="toastHost" class="toast-host" aria-live="polite"></div>
-<script src="./config.js?v=8.4.1"></script>
-<script src="./app.js?v=8.4.1"></script>
-<script src="./scanner.js?v=8.4.1"></script>
-<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("./sw.js?v=8.4.1").catch(()=>{})}</script>
+<script src="./config.js?v=8.4.2"></script>
+<script src="./app.js?v=8.4.2"></script>
+<script src="./scanner.js?v=8.4.2"></script>
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("./sw.js?v=8.4.2").catch(()=>{})}</script>
 </body>
 </html>
