@@ -3,6 +3,7 @@ const $=id=>document.getElementById(id);
 const src=$("srcCanvas"),ov=$("overlayCanvas"),dst=$("dstCanvas"),reviewCanvas=$("reviewCanvas"),sctx=src.getContext("2d"),octx=ov.getContext("2d");
 let file=null,pts=[],drag=-1,correctedBlob=null,ocrText="",ocrConfidence=0,lastFields={},lastExtraction=null,scanSubmissionId=null,saving=false;
 let cropConfidence=0,cropSample=null,knownMerchants=[],ocrDiagnostics=null;let mediaStream=null,cameraStarting=false,currentFacing="environment";
+let captureMode="galería",sourceDimensions={width:0,height:0},liveCaptureMode="fotograma";
 
 const normalize=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[^A-Z0-9%€.,:/\- ]+/g," ").replace(/\s+/g," ").trim();
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -15,9 +16,10 @@ function setStep(n){
   window.scrollTo({top:0,behavior:"smooth"})
 }
 function reset(){
-  file=null;pts=[];drag=-1;correctedBlob=null;ocrText="";ocrConfidence=0;ocrDiagnostics=null;lastFields={};lastExtraction=null;scanSubmissionId=crypto.randomUUID?crypto.randomUUID():String(Date.now());saving=false;cropConfidence=0;
+  file=null;pts=[];drag=-1;correctedBlob=null;sourceDimensions={width:0,height:0};ocrText="";ocrConfidence=0;ocrDiagnostics=null;lastFields={};lastExtraction=null;scanSubmissionId=crypto.randomUUID?crypto.randomUUID():String(Date.now());saving=false;cropConfidence=0;
   src.width=src.height=ov.width=ov.height=dst.width=dst.height=reviewCanvas.width=reviewCanvas.height=1;
-  stopCamera();$("galleryFile").value="";$("scanDuplicateWarning").hidden=true;$("saveScanBtn").disabled=false;$("saveScanBtn").textContent="Guardar resultado local";$("captureLauncher").hidden=false;$("liveCameraPanel").hidden=true;$("cameraPermissionHelp").hidden=true;setStep(1)
+  stopCamera();$("galleryFile").value="";if($("nativeCameraFile"))$("nativeCameraFile").value="";
+  if($("captureMeta"))$("captureMeta").hidden=true;$("scanDuplicateWarning").hidden=true;$("saveScanBtn").disabled=false;$("saveScanBtn").textContent="Guardar resultado local";$("captureLauncher").hidden=false;$("liveCameraPanel").hidden=true;$("cameraPermissionHelp").hidden=true;setStep(1)
 }
 
 
@@ -94,7 +96,7 @@ async function autoEdges(){
       }catch(e){console.warn("Segmentación de papel no concluyente",e)}
       finally{[paperMask,kernel,paperHierarchy].forEach(x=>{try{x&&x.delete()}catch{}});try{paperContours&&paperContours.delete()}catch{}}
     }
-    // R8.12: detección alternativa del papel (fondo oscuro, silla o mesa).
+    // R8.13: detección alternativa del papel (fondo oscuro, silla o mesa).
     // Propuestas de imagen completa SIN agrandar artificialmente cada letra.
     // Se premia una tira vertical clara cerca del centro, frente a otros papeles laterales.
     {
@@ -132,7 +134,7 @@ async function autoEdges(){
           }
           contoursPaper.delete();contoursPaper=null;hierPaper.delete();hierPaper=null;
         }
-      }catch(e){console.warn("R8.12: segmentación alternativa no disponible",e)}
+      }catch(e){console.warn("R8.13: segmentación alternativa no disponible",e)}
       finally{[mask,kclose,kopen,contoursPaper,hierPaper].forEach(m=>{try{m&&m.delete()}catch{}})}
     }
     candidates.sort((a,b)=>b.score-a.score);
@@ -160,14 +162,16 @@ async function decodeCaptureToSource(f){
     try{bitmap=await createImageBitmap(f,{imageOrientation:"from-image"})}catch(e){console.warn("createImageBitmap fallo",e)}
   }
   if(bitmap){
-    const scale=Math.min(1,3200/Math.max(bitmap.width,bitmap.height));
+    sourceDimensions={width:bitmap.width,height:bitmap.height};
+    const scale=Math.min(1,3800/Math.max(bitmap.width,bitmap.height));
     src.width=Math.max(2,Math.round(bitmap.width*scale));src.height=Math.max(2,Math.round(bitmap.height*scale));
     sctx.clearRect(0,0,src.width,src.height);sctx.drawImage(bitmap,0,0,src.width,src.height);
     try{bitmap.close()}catch{}
     return;
   }
   const dataUrl=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(r.error||new Error("No se pudo leer la foto"));r.readAsDataURL(f)});
-  await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>{const scale=Math.min(1,3200/Math.max(im.naturalWidth,im.naturalHeight));src.width=Math.max(2,Math.round(im.naturalWidth*scale));src.height=Math.max(2,Math.round(im.naturalHeight*scale));sctx.clearRect(0,0,src.width,src.height);sctx.drawImage(im,0,0,src.width,src.height);resolve()};im.onerror=()=>reject(new Error("Formato de imagen no compatible"));im.src=dataUrl})
+  await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>{sourceDimensions={width:im.naturalWidth,height:im.naturalHeight};
+    const scale=Math.min(1,3800/Math.max(im.naturalWidth,im.naturalHeight));src.width=Math.max(2,Math.round(im.naturalWidth*scale));src.height=Math.max(2,Math.round(im.naturalHeight*scale));sctx.clearRect(0,0,src.width,src.height);sctx.drawImage(im,0,0,src.width,src.height);resolve()};im.onerror=()=>reject(new Error("Formato de imagen no compatible"));im.src=dataUrl})
 }
 
 function stopCamera(){
@@ -204,7 +208,7 @@ async function startCamera(){
   $("captureLiveBtn").disabled=true;
   try{
     let stream;
-    const preferred={audio:false,video:{facingMode:{ideal:currentFacing},width:{ideal:1920},height:{ideal:2560}}};
+    const preferred={audio:false,video:{facingMode:{ideal:currentFacing},width:{ideal:2560},height:{ideal:1920}}};
     try{
       stream=await navigator.mediaDevices.getUserMedia(preferred);
     }catch(first){
@@ -223,7 +227,8 @@ async function startCamera(){
       if(video.readyState>=1){cleanup();resolve()}
     });
     await video.play();
-    $("cameraStatus").textContent="Cámara lista. Encaja el ticket completo y pulsa Capturar.";
+    $("cameraStatus").textContent="Vista integrada: "+video.videoWidth+" × "+video.videoHeight+" px. Para mejor nitidez usa la cámara del teléfono.";
+    if(video.videoWidth*video.videoHeight<1600000)window.gasto360Cloud.toast("Vista integrada limitada a "+video.videoWidth+" × "+video.videoHeight+". Recomendamos Cámara del teléfono.","warn",6500);
     $("captureLiveBtn").disabled=false;
     await enumerateRearCameraSupport();
   }catch(err){
@@ -243,12 +248,15 @@ async function captureLiveFrame(){
   const w=video.videoWidth,h=video.videoHeight;
   if(!mediaStream||!w||!h){window.gasto360Cloud.toast("La cámara todavía no está lista.","warn");return}
   $("captureLiveBtn").disabled=true;
+  liveCaptureMode="fotograma";
   $("cameraStatus").textContent="Capturando ticket...";
   let blob=null;
   if(window.ImageCapture&&mediaStream.getVideoTracks().length){
-    try{blob=await new ImageCapture(mediaStream.getVideoTracks()[0]).takePhoto()}catch(e){console.warn("Foto de máxima resolución no disponible; usamos fotograma",e)}
+    try{blob=await new ImageCapture(mediaStream.getVideoTracks()[0]).takePhoto();if(blob)liveCaptureMode="foto nativa del flujo"}catch(e){console.warn("Foto de máxima resolución no disponible; usamos fotograma",e)}
   }
   if(!blob){
+    liveCaptureMode="fotograma";
+    if(w*h<1600000)window.gasto360Cloud.toast("La cámara integrada ofrece solo "+w+" × "+h+" píxeles. Para una imagen nítida utiliza Cámara del teléfono.","warn",8500);
     const c=document.createElement("canvas");c.width=w;c.height=h;
     const ctx=c.getContext("2d",{alpha:false});ctx.drawImage(video,0,0,w,h);
     blob=await new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error("No se pudo crear la fotografía")),"image/jpeg",.96));
@@ -258,7 +266,7 @@ async function captureLiveFrame(){
   stopCamera();
   $("liveCameraPanel").hidden=true;
   $("captureLauncher").hidden=false;
-  await loadFile(captured);
+  await loadFile(captured,liveCaptureMode==="foto nativa del flujo"?"cámara integrada / ImageCapture":"cámara integrada / fotograma de vídeo");
 }
 async function switchCamera(){
   currentFacing=currentFacing==="environment"?"user":"environment";
@@ -266,15 +274,26 @@ async function switchCamera(){
   await startCamera();
 }
 
-async function loadFile(f){
+async function loadFile(f,origin="galería"){
   if(!f){window.gasto360Cloud.toast("La cámara no entregó ninguna foto. Inténtalo de nuevo.","warn");return}
   clearCaptureState();
-  file=f;
+  file=f;captureMode=origin;
   setStep(2);
   $("cropHint").innerHTML='<span class="capture-return-status"><span class="mini-spinner"></span>Foto recibida. Preparando encuadre...</span>';
   $("qualityBanner").hidden=true;
   try{
     await decodeCaptureToSource(f);
+    const orig=sourceDimensions.width*sourceDimensions.height;
+    const notice=[];
+    if(orig<1800000)notice.push("Resolución original baja: acerca el móvil y activa cámara nativa");
+    if(origin.includes("fotograma"))notice.push("Captura de vídeo: suele tener menos detalle que la cámara nativa");
+    const meta=$("captureMeta");
+    if(meta){
+      meta.hidden=false;
+      meta.textContent="Origen: "+origin+" · Original: "+sourceDimensions.width+" × "+sourceDimensions.height+
+        " px · Procesamiento: "+src.width+" × "+src.height+" px · Archivo: "+(f.size/1048576).toFixed(2)+" MB"+
+        (notice.length?" · "+notice.join(". "):"");
+    }
     defaultPts();
     $("cropHint").textContent="Analizando la foto y buscando los bordes...";
     await waitCV(1800);
@@ -295,7 +314,9 @@ $("captureLiveBtn").onclick=()=>captureLiveFrame();
 $("cancelLiveCamera").onclick=()=>{stopCamera();$("liveCameraPanel").hidden=true;$("captureLauncher").hidden=false;$("cameraStatus").textContent="Preparando cámara trasera..."};
 $("switchCameraBtn").onclick=()=>switchCamera();
 $("galleryFile").addEventListener("click",e=>{e.currentTarget.value=""});
-$("galleryFile").addEventListener("change",e=>loadFile(e.currentTarget.files&&e.currentTarget.files[0]));
+$("galleryFile").addEventListener("change",e=>loadFile(e.currentTarget.files&&e.currentTarget.files[0],"galería"));
+$("nativeCameraFile").addEventListener("click",e=>{e.currentTarget.value=""});
+$("nativeCameraFile").addEventListener("change",e=>loadFile(e.currentTarget.files&&e.currentTarget.files[0],"cámara nativa del teléfono"));
 $("retakeBtn").onclick=reset;$("autoEdges").onclick=autoEdges;$("acceptCrop").onclick=()=>{
   if(pts.length===4){const p=sortPts(pts),wid=Math.max(Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y),Math.hypot(p[2].x-p[3].x,p[2].y-p[3].y));if(wid<400)window.gasto360Cloud.toast("El ticket tiene solo "+Math.round(wid)+" píxeles de ancho. Una foto más cercana ayudará a leer las letras.","warn",5500);}
   const area=pts.length===4?polyArea(sortPts(pts))/Math.max(1,src.width*src.height):1;
@@ -370,8 +391,8 @@ async function recognizeCanvas(c,label,base,span){
 }
 async function runOCR(){
   updateProgress(27,"Reconociendo texto…","Lectura en varias zonas y tratamientos de imagen");
-  if(!window.Gasto360OCRR812)throw new Error("No se cargó el motor OCR R8.12. Recarga la página.");
-  const r=await window.Gasto360OCRR812.run(dst,(raw,conf,known)=>window.Gasto360ScanR86.extract(raw,conf,known),knownMerchants,updateProgress);
+  if(!window.Gasto360OCRR813)throw new Error("No se cargó el motor OCR R8.13. Recarga la página.");
+  const r=await window.Gasto360OCRR813.run(dst,(raw,conf,known)=>window.Gasto360ScanR86.extract(raw,conf,known),knownMerchants,updateProgress);
   ocrText=r.text||"";ocrConfidence=r.confidence;ocrDiagnostics=r.diagnostics;
   lastExtraction=r.fields;lastFields=r.fields;
   await sleep(120);
@@ -409,7 +430,7 @@ $("editItemsBtn").onclick=()=>{const txt=(lastExtraction?.items||[]).map(x=>x.na
 
 function buildPayload(){
   const fields={merchant:$("ocrMerchant").value.trim(),date:$("ocrDate").value,amount:Number($("ocrAmount").value),tax:Number($("ocrTax").value||0),concept:$("ocrConcept").value.trim(),category:$("ocrCategory").value,payment:$("ocrPayment").value};
-  const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.12",ocrDiagnostics,cropConfidence}};
+  const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.13",ocrDiagnostics,cropConfidence}};
   return {fields,scan,submissionId:scanSubmissionId}
 }
 async function doSave(force=false){
@@ -430,11 +451,11 @@ window.addEventListener("pagehide",()=>stopCamera());
 window.addEventListener("beforeunload",()=>stopCamera());
 $("downloadOcrDiagnostic").onclick=()=>{
   if(!ocrDiagnostics){window.gasto360Cloud.toast("Todavía no se ha ejecutado el reconocimiento.","warn");return}
-  const report={version:"R8.12",createdAt:new Date().toISOString(),diagnostics:ocrDiagnostics,fields:lastExtraction,
+  const report={version:"R8.13",createdAt:new Date().toISOString(),diagnostics:ocrDiagnostics,fields:lastExtraction,
     note:"Informe local: contiene texto reconocido del ticket. Revisa sus datos personales antes de compartirlo."};
   const blob=new Blob([JSON.stringify(report,null,2)],{type:"application/json"});
   const url=URL.createObjectURL(blob),link=document.createElement("a");
-  link.href=url;link.download="diagnostico_ocr_gasto360_r812_"+new Date().toISOString().slice(0,10)+".json";
+  link.href=url;link.download="diagnostico_ocr_gasto360_r813_"+new Date().toISOString().slice(0,10)+".json";
   document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);
 };
 window.gasto360Scanner={reset,stopCamera,startCamera};
