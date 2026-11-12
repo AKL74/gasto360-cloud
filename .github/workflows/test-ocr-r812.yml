@@ -1,0 +1,25 @@
+name: Comprobaciones Gasto360 R8.12
+on:
+  pull_request:
+    paths:
+      - "pruebas-r812/**"
+      - ".github/workflows/test-ocr-r812.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Sintaxis de módulos
+        run: |
+          node --check pruebas-r812/scanner.js
+          node --check pruebas-r812/ocr-r87.js
+          node --check pruebas-r812/scanner-r86-core.js
+          node --check pruebas-r812/test-app.js
+      - name: Pruebas OCR simuladas y detección de papel
+        run: node pruebas-r812/tests-r812.cjs
