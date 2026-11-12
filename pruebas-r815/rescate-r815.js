@@ -94,7 +94,7 @@ function headerData(text){
  }
  const start=lines.findIndex(x=>/\bNIF\b|\bCIF\b/.test(N(x)));
  const entries=lines.slice(Math.max(0,start+1),Math.max(start+1,Math.min(lines.length,start+90))).map((line,i)=>({
-  line,i,m:values(line),vat:(line.match(/\b([ABC])\s*$/)||[])[1]||null
+  line,i,m:values(line),vat:(line.match(/\b([ABCL])\s*$/)||[])[1]||null
  }));
  const offers=[];
  for(let i=0;i<entries.length;i++){
@@ -121,11 +121,11 @@ function addHints(rows,header){
   }
   anchors.push(s>=.38?best:-1);
  }
- for(let idx=0;idx<rows.length;idx++){
+ for(let idx=rows.length-1;idx>=0;idx--){
   const anchor=anchors[idx];if(anchor<0)continue;
   const candidates=[];
   header.entries.forEach((e,j)=>{
-   if(occupied.has(j)||!e.m.length||!/^[0-9.,\s]+[A-C]?\s*$/.test(e.line))return;
+   if(occupied.has(j)||!e.m.length||!/^[0-9.,\s]+[A-CL]?\s*$/.test(e.line))return;
    const dist=e.i-anchor;
    if(Math.abs(dist)>4)return;
    const val=e.m.at(-1).amount;
@@ -133,7 +133,8 @@ function addHints(rows,header){
    const nextAnchor=anchors.slice(idx+1).find(x=>x>=0)??Infinity;
    // Una cifra situada entre dos nombres suele pertenecer al nombre más próximo.
    // Si es equidistante, en tickets fiscales el precio aparece a menudo ANTES del nombre.
-   if(dist>0&&nextAnchor<Infinity&&nextAnchor-e.i<=dist) return;
+   if(dist>0&&nextAnchor<Infinity&&nextAnchor-e.i<=dist&&
+     ![...occupied].some(used=>used>e.i&&used<nextAnchor))return;
    // Los posibles importes de promoción, sin código A/B/C, no son precios confirmados.
    const strength=e.vat?1.8:0,score=strength-Math.abs(dist)*.27+(dist<0?.55:0);
    candidates.push({j,value:val,line:e.line,score,vat:e.vat});
@@ -264,7 +265,7 @@ function analyze(passes,fields){
   }
  }
  rows.forEach(x=>{x.net=x.gross===null?null:R(x.gross-x.discount);x.needsReview=x.gross===null||x.reviewReasons.length>0});
- const reconciliation=base.summary(rows,Number(fields?.amount||0));
+ const reconciliation=summary(rows,Number(fields?.amount||0));
  const fiscal=parseVat(passes,Number(fields?.amount||0));
  return {version:'R8.15',items:rows,reconciliation,fiscal,
    discountAudit:{stated:statedDiscount,readFromHeader:sum,assigned:R(rows.reduce((n,x)=>n+x.discount,0)),
@@ -272,7 +273,18 @@ function analyze(passes,fields){
    warnings:applied===0&&promoSlots.length?['Se detectan promociones sin importes fiables; no se han asignado automáticamente.']:[],
    sourcePasses:(passes||[]).map(x=>({label:x.label,characters:x.text?.length||0,confidence:x.confidence||0})),provisional:true};
 }
-root.Gasto360DesgloseR815={analyze,parseFull,parseVat,headerData,summary:base.summary,
+function summary(items,total){
+ const known=items.filter(x=>x.gross!==null&&Number.isFinite(Number(x.gross)));
+ const grossKnown=R(known.reduce((v,x)=>v+Number(x.gross),0));
+ const discounts=R(items.reduce((v,x)=>v+Number(x.discount||0),0));
+ const discountsKnown=R(known.reduce((v,x)=>v+Number(x.discount||0),0));
+ const netKnown=R(grossKnown-discountsKnown);
+ const unknown=items.length-known.length,remaining=total>0?R(total-netKnown):null;
+ return {total:total>0?total:null,grossKnown,discounts,discountsKnown,netKnown,
+  difference:remaining,unknown,known:known.length,
+  status:unknown===0&&remaining!==null&&Math.abs(remaining)<=.025?'cuadrado':'pendiente',suggestion:null};
+}
+root.Gasto360DesgloseR815={analyze,parseFull,parseVat,headerData,summary,
  normalizeEditable:base.normalizeEditable,canonical:base.canonical,round:R};
 if(typeof module!=='undefined'&&module.exports)module.exports=root.Gasto360DesgloseR815;
 })(typeof window!=='undefined'?window:globalThis);
