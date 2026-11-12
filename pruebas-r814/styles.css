@@ -109,3 +109,14 @@ main{max-width:1160px;margin:auto;padding:20px}.card,.login-card{background:#fff
 .purchase-item button.delete-item{min-height:38px;margin-top:10px}
 #addItemBtn{margin-top:12px}
 @media(max-width:480px){.purchase-kpis strong{font-size:16px}.purchase-item-edit{grid-template-columns:repeat(2,minmax(0,1fr))}.items-card .section-head{align-items:flex-start;flex-wrap:wrap}}
+
+/* R8.14: comparador temporal de precios guardados en esta sesión */
+.price-session{border:1px solid #608193;border-radius:15px;padding:14px;background:#132c38;color:#d6eaf6;margin:13px 0}
+.price-session h3{margin:0 0 8px;font-size:18px}
+.price-session p{font-size:13px;line-height:1.5}
+.price-session .table-scroll{max-width:100%;overflow-x:auto}
+.price-session table{width:100%;min-width:640px;border-collapse:collapse;font-size:13px}
+.price-session th,.price-session td{padding:9px;border-bottom:1px solid #416476;vertical-align:top}
+.saved-items-summary{padding:10px;background:#edf4f8;border-radius:9px;color:#234456;margin:10px 0}
+.saved-items-summary h3{margin:0 0 8px;font-size:16px}
+.saved-item{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid #d0dee8;font-size:13px}
