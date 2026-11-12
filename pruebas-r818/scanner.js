@@ -96,7 +96,7 @@ async function autoEdges(){
       }catch(e){console.warn("Segmentación de papel no concluyente",e)}
       finally{[paperMask,kernel,paperHierarchy].forEach(x=>{try{x&&x.delete()}catch{}});try{paperContours&&paperContours.delete()}catch{}}
     }
-    // R8.17: detección alternativa del papel (fondo oscuro, silla o mesa).
+    // R8.18: detección alternativa del papel (fondo oscuro, silla o mesa).
     // Propuestas de imagen completa SIN agrandar artificialmente cada letra.
     // Se premia una tira vertical clara cerca del centro, frente a otros papeles laterales.
     {
@@ -134,7 +134,7 @@ async function autoEdges(){
           }
           contoursPaper.delete();contoursPaper=null;hierPaper.delete();hierPaper=null;
         }
-      }catch(e){console.warn("R8.17: segmentación alternativa no disponible",e)}
+      }catch(e){console.warn("R8.18: segmentación alternativa no disponible",e)}
       finally{[mask,kclose,kopen,contoursPaper,hierPaper].forEach(m=>{try{m&&m.delete()}catch{}})}
     }
     candidates.sort((a,b)=>b.score-a.score);
@@ -391,20 +391,21 @@ async function recognizeCanvas(c,label,base,span){
 }
 async function runOCR(){
   updateProgress(27,"Reconociendo texto…","Lectura en varias zonas y tratamientos de imagen");
-  if(!window.Gasto360OCRR816)throw new Error("No se cargó el motor OCR R8.17. Recarga la página.");
+  if(!window.Gasto360OCRR816)throw new Error("No se cargó el motor OCR R8.18. Recarga la página.");
   const r=await window.Gasto360OCRR816.run(dst,(raw,conf,known)=>window.Gasto360ScanR86.extract(raw,conf,known),knownMerchants,updateProgress);
   const analysis=window.Gasto360DesgloseR816.analyze(r.diagnostics?.passes||[],r.fields);
   window.Gasto360DesgloseR816.applyResult(r.fields,analysis,r.diagnostics?.passes||[]);
-  // Prioridad R8.17: empresa, fecha, TOTAL, IVA y pago se validan de forma independiente.
+  // Prioridad R8.18: empresa, fecha, TOTAL, IVA y pago se validan de forma independiente.
   const essential=window.Gasto360EsencialesR817.interpret(r.diagnostics?.passes||[],r.fields);
   window.Gasto360EsencialesR817.apply(r.fields,analysis,essential);
+  window.Gasto360RevisionR818.apply(r.fields,analysis,r.diagnostics?.passes||[]);
 // Concepto resumido para tickets con detalle: el listado completo queda en artículos.
 if(analysis?.amountAudit?.verified && analysis.items.length>3 &&
    (r.fields.concept||'').includes('+')){
   r.fields.concept='Compra en '+(r.fields.merchant||'comercio')+' ('+analysis.items.length+' artículos)';
   r.fields.confidence.concept=85;
 }
-  analysis.version='R8.17';
+  analysis.version='R8.18';
   r.fields.items=analysis.items;
   r.fields.desglose=analysis;
   // Una cifra identificada y cuadrada como descuento no debe sugerirse como TOTAL.
@@ -609,7 +610,7 @@ function buildPayload(){
     ivaEstado:desglose?.fiscal?.status==="validado"&&
       Math.abs(desglose.fiscal.gross-Number($("ocrAmount").value||0))<=.025&&
       Math.abs(desglose.fiscal.tax-Number($("ocrTax").value||0))<=.025?"validado":"pendiente"};
-  const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.17",ocrDiagnostics,cropConfidence}};
+  const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.18",ocrDiagnostics,cropConfidence}};
   return {fields,scan,submissionId:scanSubmissionId}
 }
 async function doSave(force=false){
@@ -630,11 +631,11 @@ window.addEventListener("pagehide",()=>stopCamera());
 window.addEventListener("beforeunload",()=>stopCamera());
 $("downloadOcrDiagnostic").onclick=()=>{
   if(!ocrDiagnostics){window.gasto360Cloud.toast("Todavía no se ha ejecutado el reconocimiento.","warn");return}
-  const report={version:"R8.17",createdAt:new Date().toISOString(),diagnostics:ocrDiagnostics,fields:lastExtraction,
+  const report={version:"R8.18",createdAt:new Date().toISOString(),diagnostics:ocrDiagnostics,fields:lastExtraction,
     note:"Informe local: contiene texto reconocido del ticket. Revisa sus datos personales antes de compartirlo."};
   const blob=new Blob([JSON.stringify(report,null,2)],{type:"application/json"});
   const url=URL.createObjectURL(blob),link=document.createElement("a");
-  link.href=url;link.download="diagnostico_ocr_gasto360_r817_"+new Date().toISOString().slice(0,10)+".json";
+  link.href=url;link.download="diagnostico_ocr_gasto360_r818_"+new Date().toISOString().slice(0,10)+".json";
   document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);
 };
 window.gasto360Scanner={reset,stopCamera,startCamera};
