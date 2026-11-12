@@ -1,0 +1,25 @@
+name: Validar Gasto360 R8.10 OCR por zonas
+on:
+  pull_request:
+    paths:
+      - "pruebas-r810/**"
+      - ".github/workflows/test-ocr-r810.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Revisar sintaxis y compatibilidad
+        run: |
+          node --check pruebas-r810/scanner.js
+          node --check pruebas-r810/ocr-r87.js
+          node --check pruebas-r810/scanner-r86-core.js
+          node --check pruebas-r810/test-app.js
+      - name: Pruebas de campos y zonas
+        run: node pruebas-r810/tests-r810.cjs
