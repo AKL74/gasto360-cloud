@@ -1,42 +1,36 @@
-GASTO360 R8.6 - ESCANER EN MODO PRUEBAS
-=======================================
+GASTO360 R8.7 - LABORATORIO OCR MULTILECTURA
+=================================================
+Es una PRUEBA SEPARADA. No modifica tu Gasto360 habitual,
+no usa la base de datos de producción ni se integra aún en HUB.
 
-IMPORTANTE
-- Este paquete no sustituye tu aplicación Gasto360.
-- Funciona sin cuenta Google y no envía imágenes ni datos a Supabase.
-- Los resultados y fotografías se guardan temporalmente en la pestaña actual.
-- Al cerrar o actualizar la pestaña se pierden. Antes puedes descargar
-  el informe JSON y, desde Resultados, las imágenes originales/corregidas.
+EN WINDOWS:
+1. Descarga el ZIP del repositorio y DESCOMPRIME.
+2. Abre la subcarpeta pruebas-r87.
+3. DOBLE CLIC: INICIAR_GASTO360_R87_PRUEBAS.bat
+4. Se abre http://127.0.0.1:18987/
+5. Importa una foto en máxima resolución, encuadra el ticket,
+   pulsa Continuar y comprueba los datos.
+6. En la revisión pulsa "Descargar diagnóstico OCR" aunque
+   no se detecten comercio, fecha o total.
 
-PASOS EN WINDOWS
-1. Descomprime el ZIP del repositorio en una carpeta de tu ordenador.
-2. Abre la subcarpeta: pruebas-r86.
-3. Haz DOBLE CLIC en INICIAR_GASTO360_R86_PRUEBAS.bat.
-4. Se abre http://127.0.0.1:18986/ en tu navegador.
-5. Pulsa "Elegir de galería" o usa una cámara del ordenador.
-6. Verifica el borde amarillo; si está sobre la carpeta, mueve sus esquinas.
-7. Pulsa Continuar y revisa los campos detectados. Comprueba especialmente
-   Comercio, Fecha y Total pagado.
-8. Guarda el resultado local, entra en Resultados y descarga el informe JSON.
-9. Para detener el servidor, cierra su ventana negra.
+EN SAMSUNG / MOVIL:
+Abre https://akl74.github.io/gasto360-cloud/pruebas-r87/
+No necesitas descomprimir nada en el móvil.
+El uso de la cámara exige HTTPS, por eso el servidor Windows
+solo está disponible desde el propio ordenador.
 
-PASOS EN ANDROID / SAMSUNG INTERNET
-- El servidor local de Windows NO es accesible desde el móvil.
-- Abre la dirección HTTPS de pruebas:
-  https://akl74.github.io/gasto360-cloud/pruebas-r86/
-- Esa URL ofrece el mismo escáner aislado, sin necesidad de inicio de sesión.
-- Usa "Abrir cámara" o "Elegir de galería", revisa el recorte y extrae el OCR.
-- La web descargará bibliotecas OpenCV y Tesseract desde sus CDN habituales;
-  requiere Internet para arrancar el reconocimiento.
+CAMBIOS R8.7:
+- 2-5 pasadas OCR, una imagen original y otra contrastada,
+  con lecturas independientes de cabecera y parte inferior.
+- Combinación de campos con distintas lecturas.
+- Identificación de total separado de su etiqueta y pago
+  con tarjeta sin requerir la palabra BANCARIA.
+- Diagnóstico descargable aunque los campos estén vacíos.
 
-SI OBSERVAS UN ERROR
-- Haz captura de Encuadre y del resultado de Datos detectados.
-- Descarga el informe JSON antes de cerrar el navegador.
-- No borres ni sobreescribas el Gasto360 actual.
-
-LIMITACIONES
-- El escáner está en evaluación: fotos borrosas, documentos diminutos y
-  facturas fiscales complejas pueden requerir corrección manual.
-- Los justificantes de datáfono no equivalen a facturas desglosadas.
-- No se prueban todavía las escrituras en la base de datos de producción.
-- La instalación de pruebas no añade una nueva entrada al HUB.
+IMPORTANTE:
+- Los resultados viven en la pestaña hasta cerrarla/actualizarla.
+- El informe descargado contiene texto del ticket; elimina o
+  oculta datos personales antes de compartirlo.
+- Tesseract/OpenCV cargan bibliotecas públicas desde Internet,
+  pero el código NO envía fotos al servidor de Supabase.
+- No asegura reconocimiento correcto de letras ilegibles.
