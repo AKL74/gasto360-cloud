@@ -146,6 +146,7 @@ function fiscalRows(passes){
     if(/^TOTAL\b/.test(line))break;
     const m=/^\s*(4|10|21)\s*%\s+(\d{1,4}[.,]\d{2})\s+(\d{1,4}[.,]\d{2})/.exec(line);
     if(!m)continue;
+   if(/^\s*TOTAL\b/i.test(u)&&amounts(line).length>1)continue; // Subtotal fiscal no es pago.
     const rate=Number(m[1]),base=parseMoney(m[2]),vat=parseMoney(m[3]);
     if(base===null||vat===null||Math.abs(round(base*rate/100)-vat)>.025)continue;
     rows.push({rate,code:null,base,vat,gross:round(base+vat),source:pass.label,raw:lines[j],review:false});
@@ -212,7 +213,14 @@ function analyze(passes,fields){
   sourcePasses:source.map(x=>({label:x.label,characters:x.text?.length||0,confidence:x.confidence||0})),
   provisional:reconciliation.status!=='cuadrado'};
 }
-function applyResult(fields,analysis){
+function applyResult(fields,analysis,passes=[]){
+ // Identificador fiscal del establecimiento separado por guion: A-12345678.
+ if(!fields.taxId){
+  for(const pass of passes){
+   const tax=String(pass.text||'').match(/(?:^|\n)\s*([A-HJ-NP-SUVW])\s*[- ]\s*(\d{8})\s*(?=\n|$)/m);
+   if(tax){fields.taxId=tax[1]+tax[2];break;}
+  }
+ }
  if(!analysis?.amountAudit?.corrected)return fields;
  const old=Number(fields.amount),corrected=Number(analysis.amountAudit.amount);
  fields.amount=corrected;
