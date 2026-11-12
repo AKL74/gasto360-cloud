@@ -1,0 +1,32 @@
+GASTO360 R8.8 — PRUEBAS DEL TOTAL, DESCUENTOS E IVA
+===================================================
+Esta version CORRIGE LA INTERPRETACION DEL OCR, no sustituye
+tu Gasto360 habitual y no escribe documentos en la nube.
+
+EN EL MOVIL:
+https://akl74.github.io/gasto360-cloud/pruebas-r88/?v=88
+
+EN WINDOWS:
+Descomprime el ZIP de la rama de pruebas. Abre pruebas-r88
+y ejecuta INICIAR_GASTO360_R88_PRUEBAS.bat.
+Necesita Python 3, se sirve en http://127.0.0.1:18988/
+
+NUEVAS REGLAS:
+- En tickets con "IMP. : 42,48 EUR", no confundir 42,48 con
+  "Total oferta Lidl Plus: 6,93", que son ahorros.
+- Interpretar venta con un justificante de tarjeta sin
+  confundir "VENTA CONTADO" con efectivo.
+- Tabla fiscal validada: 5,17 IVA + 37,31 base = 42,48.
+- No considerar "0,030 kg x 2,99 EUR/kg" un producto.
+- Para informes, el diagnóstico OCR contiene texto que
+  podría incluir datos personales. No compartas sin revisar.
+- La forma de pago con señales contradictorias se marca
+  como "Otro" para revisión humana.
+
+INSTRUCCIONES DE PRUEBA:
+Haz foto del ticket, revisa los 4 bordes, pulsa Continuar,
+comprueba los campos y descarga el diagnostico si hay error.
+El modo pruebas conserva todo en la pestaña hasta cerrarla;
+el servidor y esta página nunca escriben en Supabase.
+
+La version R8.7 permanece accesible en /pruebas-r87/.
