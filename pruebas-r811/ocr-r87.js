@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-/* Gasto360 R8.7: OCR local multinivel. Sin APIs ni envíos de tickets. */
+/* Gasto360 R8.11: motor OCR restaurado exactamente de R8.7; fusión de campos corregida. Sin APIs ni envíos de tickets. */
 const clamp=(n,a,b)=>Math.max(a,Math.min(n,b));
 function makeCanvas(image,mode='original',section='full'){
   const x=0,y=section==='cabecera'?0:section==='pie'?Math.floor(image.height*.45):0;
@@ -39,16 +39,23 @@ function combine(attempts){
  for(const key of choices){
   const options=attempts.filter(r=>{
     const v=r.fields[key];return v!==undefined&&v!==null&&v!==''&&(key!=='payment'||v!=='Otro')&&(key!=='tax'||Number(v)>0);
-  }).map(r=>({value:r.fields[key],label:r.label,confidence:r.fields.confidence?.[key]||0,quality:r.confidence}));
+  }).map(r=>({value:r.fields[key],label:r.label,confidence:r.fields.confidence?.[key]||0,quality:r.confidence,source:r.fields.totalSource||'',fiscal:!!r.fields.fiscalValidated,base:r.fields.base??null,verified:(r.fields.merchantCandidates||[]).some(x=>x.name===r.fields.merchant&&x.verified)}));
   if(!options.length)continue;
   const counts=new Map();
   for(const x of options){const k=String(x.value).toUpperCase().trim();counts.set(k,(counts.get(k)||0)+1)}
   options.sort((a,b)=>{
    const same=(v)=>counts.get(String(v.value).toUpperCase().trim())||0;
    const region=(x)=>((key==='merchant'||key==='date')&&x.label==='cabecera'?7:key==='amount'&&x.label==='pie'?7:0);
-   return (same(b)*18+b.confidence*.55+b.quality*.24+region(b))-(same(a)*18+a.confidence*.55+a.quality*.24+region(a));
+   const evidence=x=>key==='amount'?
+     (/importe abonado|total compra|a pagar/.test(x.source)?55:/total del ticket/.test(x.source)?27:/cuadre fiscal/.test(x.source)?15:0)+(x.fiscal?15:0)
+     :key==='merchant'?(x.verified?35:-70):0;
+   return (same(b)*9+b.confidence*.65+b.quality*.18+region(b)+evidence(b))-(same(a)*9+a.confidence*.65+a.quality*.18+region(a)+evidence(a));
   });
-  const choice=options[0];result[key]=choice.value;evidence[key]=choice.label;
+  const choice=options[0];
+  if(key==='merchant'&&!choice.verified){result.merchant='';result.category='Otros';evidence[key]='No verificado';continue}
+  result[key]=choice.value;evidence[key]=choice.label;
+  if(key==='amount'){result.totalSource=choice.source;result.fiscalValidated=choice.fiscal}
+  if(key==='tax'&&choice.base!==null){result.base=choice.base;result.fiscalValidated=choice.fiscal}
   if(key==='merchant'){
    const source=attempts.find(r=>r.label===choice.label);
    if(source?.fields.category&&source.fields.category!=='Otros')result.category=source.fields.category;
@@ -66,11 +73,13 @@ function combine(attempts){
  for(const r of attempts)for(const n of r.fields.amountCandidates||[])allAmountCandidates.add(n);
  result.amountCandidates=[...new Set([...(result.amountCandidates||[]),...allAmountCandidates])].slice(0,8);
  const allMerchants=new Map();
- for(const r of attempts)for(const m of r.fields.merchantCandidates||[])if(m?.name&&!allMerchants.has(m.name))allMerchants.set(m.name,m);
+ for(const r of attempts)for(const m of r.fields.merchantCandidates||[])if(m?.name&&m.verified&&!allMerchants.has(m.name))allMerchants.set(m.name,m);
  result.merchantCandidates=[...allMerchants.values()].slice(0,7);
  const products=attempts.filter(r=>r.fields.items?.length).sort((a,b)=>b.fields.items.length-a.fields.items.length);
  if(products.length)result.items=products[0].fields.items;
  if(!result.concept&&result.items?.length)result.concept=result.items.slice(0,3).map(x=>x.name).join(' + ');
+ if(result.merchant&&/^Compra en /i.test(result.concept||''))result.concept='Compra en '+result.merchant;
+ if(!result.merchant&&/^Compra en /i.test(result.concept||''))result.concept='';
  if(result.merchant)for(const f of [...flags])if(/Comercio no verificado|varios comercios/.test(f)&&!result.merchantCandidates?.length)flags.delete(f);
  if(result.date)for(const f of [...flags])if(/Fecha no verificada/.test(f))flags.delete(f);
  if(result.amount!=='')for(const f of [...flags])if(/Importe total no verificado/.test(f))flags.delete(f);
@@ -97,7 +106,7 @@ async function recognize(worker,image,label,psm,onProgress,progressStart,progres
 }
 async function run(image,extract,known,onProgress){
  if(!image?.width||!image?.height)throw Error('El recorte está vacío.');
- const attempts=[],diagnostics={version:'R8.7',width:image.width,height:image.height,passes:[],issues:[]};
+ const attempts=[],diagnostics={version:'R8.11',width:image.width,height:image.height,passes:[],issues:[]};
  let activeProgress=0,worker;
  function progress(v,t,d){activeProgress=Math.max(activeProgress,v);onProgress?.(activeProgress,t,d)}
  try{
@@ -148,5 +157,5 @@ async function run(image,extract,known,onProgress){
   return {fields:merged.fields,text:all,confidence:Math.round(Math.max(...attempts.map(r=>r.confidence))),diagnostics};
  }finally{if(worker){try{await worker.terminate()}catch{}}}
 }
-window.Gasto360OCRR87={makeCanvas,run,combine};
+window.Gasto360OCRR811={makeCanvas,run,combine};
 })();
