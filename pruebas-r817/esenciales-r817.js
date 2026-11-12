@@ -115,13 +115,14 @@ function interpret(passes,fields){
    warnings:['No hay tabla fiscal suficiente para validar base e IVA.']};
  return {version:'R8.17',amount:accepted,amountConfidence:confidence,amountReason:reason,originalAmount:fields.amount,
    date, dateConfidence:date?93:0,payment,paymentConfidence:paymentConf,fiscal:fiscalResult,
-   evidence:events,vatCorroborated:!!fiscalAgreement,
+   evidence:events,itemEvidence:observations,vatCorroborated:!!fiscalAgreement,
    warnings:accepted===null?['TOTAL sin corroboración suficiente: requiere confirmación.']:[],
    amountCandidates:candidateValues.filter(x=>x>0&&Number.isFinite(x)).slice(0,12)};
 }
 function apply(fields,analysis,essential){
  const f=fields,a=analysis,e=essential;
  f.confidence={...(f.confidence||{})};f.flags=[...(f.flags||[])];
+ if(/^\s*PERCARBONATO\b/i.test(String(f.concept||''))&&f.category==='Alimentación') f.category='Hogar';
  if(e.date){f.date=e.date;f.confidence.date=e.dateConfidence;
     f.flags=f.flags.filter(x=>!x.includes('Las lecturas no coinciden en la fecha'));}
  if(e.payment){f.payment=e.payment;}
@@ -146,10 +147,15 @@ function apply(fields,analysis,essential){
   if((a.items||[]).some(x=>x.needsReview&&!x.confirmedByUser))a.reconciliation.status='pendiente';
   // Productos dudosos jamás bloquean el IVA o el total esenciales.
   if(a.items?.length===1&&a.items[0].gross===null&&e.amount!==null &&
-      e.fiscal.status==='validado'&&
-      e.evidence.some(x=>x.kind==='cashTender')){
-    // NO atribuir pesos ficticios; permitir revisar el producto sin contaminar los campos clave.
-    a.items[0].unit='ud';a.items[0].weightKg=null;
+      e.fiscal.status==='validado'){
+    const it=a.items[0],line=e.itemEvidence.filter(x=>eq(x.value,e.amount));
+    if(line.length&&line.some(x=>fmt(x.raw).includes(fmt(it.name).replace(/[^A-Z0-9 ]/g,'').slice(0,10)))){
+      // El precio figura literalmente en la línea del artículo y cuadra con IVA.
+      it.gross=e.amount;it.net=e.amount;it.quantity=1;it.unit='ud';
+      it.weightKg=null;it.unitPrice=null;it.needsReview=false;
+      it.reviewReasons=[];it.evidence=[...(it.evidence||[]),...line.map(x=>({label:x.source,raw:x.raw}))];
+      a.reconciliation=root.Gasto360DesgloseR816.summary(a.items,Number(f.amount||0));
+    }else{it.unit='ud';it.weightKg=null;}
   }
  }
  return f;
