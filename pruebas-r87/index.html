@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#173548">
 <meta name="color-scheme" content="light">
-<meta name="gasto360-build" content="R8.6-PRUEBAS">
-<title>Gasto360 R8.6 · Escáner de pruebas</title>
+<meta name="gasto360-build" content="R8.7-PRUEBAS">
+<title>Gasto360 R8.7 · Escáner de pruebas</title>
 
-<link rel="stylesheet" href="./styles.css?v=8.6">
+<link rel="stylesheet" href="./styles.css?v=8.7">
 
 <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@6/dist/tesseract.min.js"></script>
@@ -16,7 +16,7 @@
 </head>
 <body data-build="R8.5">
 <header class="topbar">
-  <div class="brand"><b>Gasto360</b><small>R8.6 &middot; PRUEBAS</small></div>
+  <div class="brand"><b>Gasto360</b><small>R8.7 &middot; PRUEBAS</small></div>
   <div class="top-actions">
     <span id="signedAs" class="signed-as" hidden></span>
     <button id="homeBtn" class="small-btn">Nuevo ticket</button>
@@ -26,7 +26,7 @@
 </header>
 
 <main><section class="card" style="border:2px solid #b9811a;background:#fff3da;color:#49320d;margin-bottom:16px">
-  <strong style="font-size:1.12rem">MODO PRUEBAS · GASTO360 R8.6</strong>
+  <strong style="font-size:1.12rem">MODO PRUEBAS · GASTO360 R8.7</strong>
   <p style="margin:8px 0 0">Escáner aislado para comprobar los tickets. NO conecta con tu cuenta, NO guarda en Supabase, NO modifica el HUB. Los resultados quedan temporalmente en esta pestaña; puedes descargar un informe de prueba.</p>
 </section>
 <section id="setup" class="card narrow" hidden><h1>Configuraci&oacute;n pendiente</h1><p>Falta la configuraci&oacute;n de Supabase.</p></section>
@@ -149,7 +149,7 @@
       </section>
 
       <section id="scanStep3" class="scan-stage" hidden>
-        <div class="stage-title"><h2>Estamos leyendo el ticket</h2><p>Mejoramos la imagen y comprobamos empresa, fecha, total, IVA y productos.</p></div>
+        <div class="stage-title"><h2>Estamos leyendo el ticket</h2><p>Realizamos distintas lecturas del ticket (completo, cabecera y parte inferior), comprobamos comercio, fecha, total, IVA y forma de pago.</p></div>
         <div class="processing-card">
           <div class="spinner"></div><strong id="processingTitle">Corrigiendo perspectiva...</strong><span id="processingDetail">Preparando documento</span>
           <div class="progress-track"><div id="ocrProgressBar"></div></div>
@@ -159,10 +159,13 @@
 
       <section id="scanStep4" class="scan-stage" hidden>
         <div class="review-hero">
-          <div><span class="eyebrow">REVISA SOLO LO IMPORTANTE</span><h2>Datos detectados</h2><p id="reviewSummary">Comprueba los campos marcados en amarillo.</p></div>
+          <div><span class="eyebrow">REVISIÓN OCR R8.7</span><h2>Datos detectados</h2><p id="reviewSummary">Comprueba los campos marcados en amarillo.</p></div>
           <span id="ocrOverallConfidence" class="confidence"></span>
         </div>
 
+        <div id="ocrDiagnosticSummary" role="status" style="border-left:4px solid #1a7799;padding:12px 14px;background:#eaf6fa;border-radius:8px;color:#123a4c;margin:12px 0;font-size:0.95rem">Lectura OCR pendiente.</div>
+        <button id="downloadOcrDiagnostic" type="button" class="light-btn">Descargar diagnóstico OCR (JSON)</button>
+        <p style="font-size:.85rem;color:#626d79">Puedes descargar el diagnóstico aunque no se haya detectado ningún campo. El archivo contiene texto del ticket y permanece en tu dispositivo salvo que decidas compartirlo.</p>
         <div id="fiscalCheck" class="fiscal-check" hidden></div>
 
         <div class="review-grid">
@@ -185,7 +188,7 @@
           <summary>Revisar imagen y texto OCR</summary>
           <div class="corrected-preview"><canvas id="reviewCanvas"></canvas></div>
           <pre id="ocrRawText"></pre>
-          <button id="repeatOcrBtn" class="light-btn" type="button">Repetir OCR</button>
+          <button id="repeatOcrBtn" class="light-btn" type="button">Repetir análisis completo OCR</button>
         </details>
 
         <div id="scanDuplicateWarning" class="warning-card" hidden><h3>Este gasto parece repetido</h3><div id="scanDuplicateExisting"></div><div class="action-row"><button id="cancelScanDuplicate" class="light-btn" type="button">Revisar</button><button id="forceScanSave" type="button">Guardar igualmente</button></div></div>
@@ -208,9 +211,10 @@
 </main>
 <div id="toastHost" class="toast-host" aria-live="polite"></div>
 
-<script src="./test-app.js?v=8.6"></script>
-<script src="./scanner-r86-core.js?v=8.6"></script>
-<script src="./scanner.js?v=8.6"></script>
+<script src="./test-app.js?v=8.7"></script>
+<script src="./scanner-r86-core.js?v=8.7"></script>
+<script src="./ocr-r87.js?v=8.7"></script>
+<script src="./scanner.js?v=8.7"></script>
 
 </body>
 </html>
