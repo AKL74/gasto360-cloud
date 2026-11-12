@@ -1,15 +1,15 @@
-GASTO360 R8.15 — RESCATE DEL DESGLOSE INTELIGENTE
+GASTO360 R8.16 — RESCATE DEL DESGLOSE INTELIGENTE
 ====================================================
 VERSIÓN DE PRUEBAS: no modifica Gasto360 habitual, HUB ni Supabase.
 El original y el texto OCR se conservan en la pestaña, sin subir datos.
 
 SAMSUNG / INTERNET:
-https://akl74.github.io/gasto360-cloud/pruebas-r815/?v=815
+https://akl74.github.io/gasto360-cloud/pruebas-r816/?v=815
 
 WINDOWS:
-Descomprime ZIP de la rama rescate-desglose-r815-20261112.
-Abre pruebas-r815 e inicia INICIAR_GASTO360_R815_PRUEBAS.bat
-(requiere Python 3). Puerto local http://127.0.0.1:18915/.
+Descomprime ZIP de la rama rescate-desglose-r816-20261112.
+Abre pruebas-r816 e inicia INICIAR_GASTO360_R816_PRUEBAS.bat
+(requiere Python 3). Puerto local http://127.0.0.1:18916/.
 
 QUÉ SE HA CORREGIDO DESDE R8.14
 1. El analizador usa tanto "original" como "contraste" y recupera
@@ -47,3 +47,11 @@ números de tarjeta, direcciones ni nombres de usuario.
 Los resultados de sesión NO se conservan al cerrar/recargar.
 Los JSON exportados pueden contener datos privados; revisarlos antes
 de compartir.
+
+
+NUEVOS CONTROLES R8.16
+- Etiqueta de pago no se acepta como producto.
+- Productos al peso: se recupera el subtotal de la linea siguiente.
+- Total corregido solo con IVA, suma de productos e importe abonado consistentes.
+- Ejemplo Mercadona: 16 articulos, 42,08 EUR, IVA 1,81 EUR, base 40,27 EUR.
+- La pera debe revisarse: OCR de 2,88 EUR contradice el calculo 2,33 EUR.
