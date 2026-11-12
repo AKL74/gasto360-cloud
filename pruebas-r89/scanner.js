@@ -19,7 +19,7 @@ function reset(){
   if($("scanRuntimeError"))$("scanRuntimeError").hidden=true;
   if($("manualReviewBtn"))$("manualReviewBtn").hidden=true;
   src.width=src.height=ov.width=ov.height=dst.width=dst.height=reviewCanvas.width=reviewCanvas.height=1;
-  stopCamera();$("galleryFile").value="";$("scanDuplicateWarning").hidden=true;$("saveScanBtn").disabled=false;$("saveScanBtn").textContent="Guardar resultado local";$("captureLauncher").hidden=false;$("liveCameraPanel").hidden=true;$("cameraPermissionHelp").hidden=true;setStep(1)
+  stopCamera();src.classList.remove("preview-smooth");if($("previewSmoothToggle"))$("previewSmoothToggle").checked=false;$("galleryFile").value="";$("scanDuplicateWarning").hidden=true;$("saveScanBtn").disabled=false;$("saveScanBtn").textContent="Guardar resultado local";$("captureLauncher").hidden=false;$("liveCameraPanel").hidden=true;$("cameraPermissionHelp").hidden=true;setStep(1)
 }
 
 
@@ -244,7 +244,7 @@ async function loadFile(f){
     const q=imageQuality();let qualityMsg=[],kind="ok";
     if(q.blur!==null&&q.blur<55){qualityMsg.push("La foto parece algo borrosa");kind="warn"}
     if(q.brightness!==null&&(q.brightness<55||q.brightness>225)){qualityMsg.push("La iluminación puede mejorarse");kind="warn"}
-    if(qualityMsg.length)setCropBanner(qualityMsg.join(". ")+"; puedes repetir la foto o continuar.",kind);
+    if(qualityMsg.length)setCropBanner(qualityMsg.join(". ")+"; intenta mejorar la iluminación para reducir el granulado.",kind);
     await autoEdges();
     $("cropHint").textContent="Foto recibida correctamente. Mueve un punto solo si la línea amarilla no coincide con el borde real del ticket.";
   }catch(err){
@@ -260,6 +260,7 @@ $("switchCameraBtn").onclick=()=>switchCamera();
 $("galleryFile").addEventListener("click",e=>{e.currentTarget.value=""});
 $("galleryFile").addEventListener("change",e=>loadFile(e.currentTarget.files&&e.currentTarget.files[0]));
 $("retakeBtn").onclick=reset;$("autoEdges").onclick=autoEdges;$("acceptCrop").onclick=()=>processScan();
+$("previewSmoothToggle").onchange=e=>src.classList.toggle("preview-smooth",!!e.target.checked);
 
 function canvasBlob(c,q=.94){
  return new Promise((resolve,reject)=>c.toBlob(blob=>blob?resolve(blob):reject(new Error("No se pudo codificar el recorte de imagen.")),"image/jpeg",q));
