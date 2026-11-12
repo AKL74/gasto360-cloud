@@ -1,0 +1,25 @@
+name: Gasto360 R8.17 — prioridad fiscal y datos esenciales
+on:
+  pull_request:
+    paths:
+      - "pruebas-r817/**"
+      - ".github/workflows/test-ocr-r817.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Sintaxis
+        run: |
+          node --check pruebas-r817/scanner.js
+          node --check pruebas-r817/esenciales-r817.js
+          node --check pruebas-r817/interpretacion-r816.js
+          node --check pruebas-r817/ocr-r87.js
+      - name: Ensayos de cinco campos prioritarios
+        run: node pruebas-r817/tests-r817.cjs
