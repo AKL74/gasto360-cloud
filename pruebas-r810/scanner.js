@@ -123,14 +123,14 @@ async function decodeCaptureToSource(f){
     try{bitmap=await createImageBitmap(f,{imageOrientation:"from-image"})}catch(e){console.warn("createImageBitmap fallo",e)}
   }
   if(bitmap){
-    const scale=Math.min(1,3200/Math.max(bitmap.width,bitmap.height));
+    const scale=Math.min(1,3600/Math.max(bitmap.width,bitmap.height));
     src.width=Math.max(2,Math.round(bitmap.width*scale));src.height=Math.max(2,Math.round(bitmap.height*scale));
     sctx.clearRect(0,0,src.width,src.height);sctx.drawImage(bitmap,0,0,src.width,src.height);
     try{bitmap.close()}catch{}
     return;
   }
   const dataUrl=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(r.error||new Error("No se pudo leer la foto"));r.readAsDataURL(f)});
-  await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>{const scale=Math.min(1,3200/Math.max(im.naturalWidth,im.naturalHeight));src.width=Math.max(2,Math.round(im.naturalWidth*scale));src.height=Math.max(2,Math.round(im.naturalHeight*scale));sctx.clearRect(0,0,src.width,src.height);sctx.drawImage(im,0,0,src.width,src.height);resolve()};im.onerror=()=>reject(new Error("Formato de imagen no compatible"));im.src=dataUrl})
+  await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>{const scale=Math.min(1,3600/Math.max(im.naturalWidth,im.naturalHeight));src.width=Math.max(2,Math.round(im.naturalWidth*scale));src.height=Math.max(2,Math.round(im.naturalHeight*scale));sctx.clearRect(0,0,src.width,src.height);sctx.drawImage(im,0,0,src.width,src.height);resolve()};im.onerror=()=>reject(new Error("Formato de imagen no compatible"));im.src=dataUrl})
 }
 
 function stopCamera(){
@@ -246,6 +246,11 @@ async function loadFile(f){
     if(q.brightness!==null&&(q.brightness<55||q.brightness>225)){qualityMsg.push("La iluminación puede mejorarse");kind="warn"}
     if(qualityMsg.length)setCropBanner(qualityMsg.join(". ")+"; intenta mejorar la iluminación para reducir el granulado.",kind);
     await autoEdges();
+    const ordered=sortPts(pts);
+    const receiptWidth=(Math.hypot(ordered[0].x-ordered[1].x,ordered[0].y-ordered[1].y)+Math.hypot(ordered[2].x-ordered[3].x,ordered[2].y-ordered[3].y))/2;
+    if(receiptWidth<480){
+      setCropBanner("El ticket ocupa pocos píxeles ("+Math.round(receiptWidth)+" de ancho). Para leer letras pequeñas, acércalo más a la cámara, en un lugar con buena luz.","warn");
+    }
     $("cropHint").textContent="Foto recibida correctamente. Mueve un punto solo si la línea amarilla no coincide con el borde real del ticket.";
   }catch(err){
     console.error(err);
@@ -324,12 +329,12 @@ async function processScan(){
     renderFinalReview();
     setStep(4);
   }catch(e){
-    console.error("Gasto360 R8.9 - "+scanStage,e);
+    console.error("Gasto360 R8.10 - "+scanStage,e);
     lastScanError={
-      version:"R8.9",stage:scanStage,error:String(e?.message||e).slice(0,400),
+      version:"R8.10",stage:scanStage,error:String(e?.message||e).slice(0,400),
       capturedAt:new Date().toISOString(),sourceSize:[src.width,src.height],
       correctedSize:[dst.width,dst.height],inputBytes:file?.size||0,
-      opencvReady:!!(window.cv&&cv.Mat),ocrReady:!!window.Gasto360OCRR89,
+      opencvReady:!!(window.cv&&cv.Mat),ocrReady:!!window.Gasto360OCRR810,
       userAgent:navigator.userAgent
     };
     setStep(2);
@@ -390,8 +395,8 @@ async function recognizeCanvas(c,label,base,span){
 }
 async function runOCR(){
   updateProgress(27,"Reconociendo texto…","Lectura en varias zonas y tratamientos de imagen");
-  if(!window.Gasto360OCRR89||typeof window.Gasto360OCRR89.run!=="function")throw new Error("Motor OCR R8.9 no cargado: comprueba la conexión y actualiza la página.");
-  const r=await window.Gasto360OCRR89.run(dst,(raw,conf,known)=>window.Gasto360ScanR86.extract(raw,conf,known),knownMerchants,updateProgress);
+  if(!window.Gasto360OCRR810||typeof window.Gasto360OCRR810.run!=="function")throw new Error("Motor OCR R8.10 no cargado: comprueba la conexión y actualiza la página.");
+  const r=await window.Gasto360OCRR810.run(dst,(raw,conf,known)=>window.Gasto360ScanR86.extract(raw,conf,known),knownMerchants,updateProgress);
   ocrText=r.text||"";ocrConfidence=r.confidence;ocrDiagnostics=r.diagnostics;
   lastExtraction=r.fields;lastFields=r.fields;
   await sleep(120);
@@ -404,14 +409,14 @@ function chips(id,values,selected,onClick,fmt=x=>String(x)){
 }
 function renderFinalReview(){
   const f=lastExtraction||{};$("ocrMerchant").value=f.merchant||"";$("ocrDate").value=f.date||"";$("ocrAmount").value=f.amount??"";$("ocrTax").value=f.tax??0;$("ocrConcept").value=f.concept||"";$("ocrCategory").value=f.category||"Otros";$("ocrPayment").value=f.payment||"Otro";$("ocrTaxId").value=f.taxId||"";$("ocrInvoiceNo").value=f.invoiceNo||"";
-  $("confMerchant").textContent=confText(f.confidence?.merchant);$("confDate").textContent=confText(f.confidence?.date);$("confAmount").textContent=confText(f.confidence?.amount);$("confTax").textContent=confText(f.confidence?.tax);$("confConcept").textContent=confText(f.confidence?.concept);$("ocrOverallConfidence").textContent=`OCR ${Math.round(f.overall||0)}%`;
+  $("confMerchant").textContent=confText(f.confidence?.merchant);$("confDate").textContent=confText(f.confidence?.date);$("confAmount").textContent=confText(f.confidence?.amount);$("confTax").textContent=confText(f.confidence?.tax);$("confConcept").textContent=confText(f.confidence?.concept);$("ocrOverallConfidence").textContent=`Calidad OCR estimada: ${Math.round(f.overall||0)}%`;
   setField("fieldMerchant",f.confidence?.merchant||0);setField("fieldDate",f.confidence?.date||0);setField("fieldAmount",f.confidence?.amount||0);setField("fieldTax",f.confidence?.tax||0);setField("fieldConcept",f.confidence?.concept||0);
   chips("merchantCandidates",(f.merchantCandidates||[]).map(x=>x.name),f.merchant,v=>{$("ocrMerchant").value=v;renderCandidateSelections()} );
   chips("amountCandidates",(f.amountCandidates||[]).filter((v,i,a)=>a.indexOf(v)===i),f.amount,v=>{$("ocrAmount").value=v;renderFiscalCheck();renderCandidateSelections()},v=>money(v));
   renderItems(f.items||[]);renderFiscalCheck();$("ocrRawText").textContent=ocrText;
   const d=ocrDiagnostics||{},attempts=d.passes||[],diag=$("ocrDiagnosticSummary");
   if(diag){
-    const detected=attempts.map(p=>p.label+": "+p.characters+" caracteres ("+p.confidence+" % OCR)").join(" | ");
+    const detected=attempts.map(p=>p.label+": "+p.characters+" caracteres ("+p.confidence+" % estimado)").join(" | ");
     const missing=["merchant","date","amount","payment"].filter(k=>k==="payment"?f.payment==="Otro":(f[k]===""||!f[k])).length;
     diag.textContent=attempts.length?(d.empty?"No se han reconocido caracteres legibles. Repite la foto o utiliza una imagen original de mayor resolución. ":missing?"OCR realizado, pero faltan "+missing+" datos principales. ":"OCR realizado. Revisa las cifras. ")+detected:"No se ejecutó ninguna lectura OCR.";
   }
@@ -429,7 +434,7 @@ $("editItemsBtn").onclick=()=>{const txt=(lastExtraction?.items||[]).map(x=>x.na
 
 function buildPayload(){
   const fields={merchant:$("ocrMerchant").value.trim(),date:$("ocrDate").value,amount:Number($("ocrAmount").value),tax:Number($("ocrTax").value||0),concept:$("ocrConcept").value.trim(),category:$("ocrCategory").value,payment:$("ocrPayment").value};
-  const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.9",ocrDiagnostics,cropConfidence}};
+  const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.10",ocrDiagnostics,cropConfidence}};
   return {fields,scan,submissionId:scanSubmissionId}
 }
 async function doSave(force=false){
@@ -450,7 +455,7 @@ window.addEventListener("pagehide",()=>stopCamera());
 window.addEventListener("beforeunload",()=>stopCamera());
 $("downloadOcrDiagnostic").onclick=()=>{
   if(!ocrDiagnostics){window.gasto360Cloud.toast("Todavía no se ha ejecutado el reconocimiento.","warn");return}
-  const report={version:"R8.9",createdAt:new Date().toISOString(),diagnostics:ocrDiagnostics,fields:lastExtraction,
+  const report={version:"R8.10",createdAt:new Date().toISOString(),diagnostics:ocrDiagnostics,fields:lastExtraction,
     note:"Informe local: contiene texto reconocido del ticket. Revisa sus datos personales antes de compartirlo."};
   const blob=new Blob([JSON.stringify(report,null,2)],{type:"application/json"});
   const url=URL.createObjectURL(blob),link=document.createElement("a");
@@ -470,7 +475,7 @@ if($("manualReviewBtn"))$("manualReviewBtn").onclick=()=>{
   payment:"Otro",taxId:"",invoiceNo:"",items:[],merchantCandidates:[],
   amountCandidates:[],confidence:{merchant:0,date:0,amount:0,tax:0,concept:0},
   overall:0,flags:["Lectura automática no disponible: rellena manualmente los datos del ticket."]};
- ocrDiagnostics={version:"R8.9",passes:[],issues:[lastScanError?.error||"OCR no disponible"]};
+ ocrDiagnostics={version:"R8.10",passes:[],issues:[lastScanError?.error||"OCR no disponible"]};
  ocrText="";ocrConfidence=0;
  renderFinalReview();setStep(4);
 };
