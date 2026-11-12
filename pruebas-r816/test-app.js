@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-/* Entorno R8.15 completamente local y efímero: jamás escribe en Supabase. */
+/* Entorno R8.16 completamente local y efímero: jamás escribe en Supabase. */
 const $=id=>document.getElementById(id);
 const views=['dashboardView','expenseView','expenseDetailView','scannerView','documentsView','documentDetailView','duplicatesView'];
 let results=[],selected=null,selectedKind='scanner_corrected';
@@ -15,7 +15,7 @@ function download(blob,name){
  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);
 }
 function exportResults(){
- const report={version:'Gasto360 R8.15 TEST',createdAt:new Date().toISOString(),note:'Resultados locales; fotografías no incluidas',cases:results.map(x=>({
+ const report={version:'Gasto360 R8.16 TEST',createdAt:new Date().toISOString(),note:'Resultados locales; fotografías no incluidas',cases:results.map(x=>({
     id:x.id,createdAt:x.createdAt,fields:x.fields,scannerFields:x.metadata,ocrText:x.text,
     ocrConfidence:x.ocrConfidence,originalFilename:x.original?.name||null,
     originalBytes:x.original?.size||0,correctedBytes:x.corrected?.size||0
@@ -121,5 +121,5 @@ $('exportAllTests').addEventListener('click',exportResults);
 $('compareSessionPrices').addEventListener('click',comparePricesInSession);
 document.querySelectorAll('.backHomeBtn').forEach(e=>{if(e.id!=='scannerExit')e.addEventListener('click',()=>show('scannerView'))});
 show('scannerView');
-toast('Prueba aislada R8.15: ningún ticket se enviará a Supabase.','ok',6500);
+toast('Prueba aislada R8.16: ningún ticket se enviará a Supabase.','ok',6500);
 })();
