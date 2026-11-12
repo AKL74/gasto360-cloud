@@ -1,0 +1,25 @@
+name: Validar Gasto360 R8.13 — captura nativa
+on:
+  pull_request:
+    paths:
+      - "pruebas-r813/**"
+      - ".github/workflows/test-ocr-r813.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Sintaxis de módulos
+        run: |
+          node --check pruebas-r813/scanner.js
+          node --check pruebas-r813/ocr-r87.js
+          node --check pruebas-r813/scanner-r86-core.js
+          node --check pruebas-r813/test-app.js
+      - name: Pruebas de captura y OCR
+        run: node pruebas-r813/tests-r813.cjs

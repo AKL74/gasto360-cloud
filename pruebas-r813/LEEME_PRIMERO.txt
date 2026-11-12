@@ -1,0 +1,40 @@
+GASTO360 R8.13 - CÁMARA NATIVA EN PRIMER LUGAR
+===============================================
+Prueba independiente. No modifica Gasto360, HUB ni Supabase.
+
+TELÉFONO / SAMSUNG INTERNET:
+https://akl74.github.io/gasto360-cloud/pruebas-r813/?v=813
+
+1. Pulsa "Hacer foto con cámara del teléfono".
+2. Autoriza la cámara si Samsung Internet te lo solicita.
+   Cuando Android te permita elegir entre Cámara y Archivos, elige Cámara.
+3. Acércate mucho más al ticket; que ocupe buena parte de la fotografía.
+   Usa un fondo oscuro mate, con luz homogénea y sin reflejos.
+4. Toca sobre el texto del ticket en la cámara Samsung para enfocar
+   y ajustar la exposición antes de disparar.
+5. Confirma la foto en la cámara Samsung y regresa a Gasto360.
+6. En Encuadre verifica cuatro esquinas. Mira el cuadro
+   "Origen" para verificar resolución ORIGINAL y de procesamiento.
+7. Pulsa Continuar. Si falla OCR, revisa el diagnóstico JSON.
+8. Si la Cámara integrada solo ofrece un fotograma con pocas
+   dimensiones, preferir la cámara nativa o Elegir de galería.
+
+CAMBIOS:
+- Nuevo botón principal que usa <input type=file capture=environment>
+  para solicitar la cámara nativa trasera.
+- La aplicación almacena el archivo recibido tal como se obtuvo.
+  No lo re-codifica para guardarlo como ORIGINAL.
+- La imagen de trabajo mantiene hasta 3800 píxeles por lado mayor.
+  Para fotos mayores, el ORIGINAL se conserva, pero la imagen de
+  procesado se reduce para proteger la memoria del navegador.
+- Se muestra resolución original, resolución de trabajo y peso.
+- La antigua cámara integrada queda como modo alternativo y
+  avisa si se usa un fotograma de vídeo de baja resolución.
+- Se conserva detector de bordes, recorte manual y OCR R8.12.
+
+IMPORTANTE:
+- Una foto sobreexpuesta o demasiado pequeña no permite OCR fiable.
+- No se ha probado todavía esta función en el dispositivo Samsung real.
+- Los resultados se guardan temporalmente en la pestaña; no hay
+  escritura en Supabase ni cambios de datos de producción.
+- Los diagnósticos pueden incluir datos personales. Revísalos.
