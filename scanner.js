@@ -2,7 +2,7 @@
 const $=id=>document.getElementById(id);
 const src=$("srcCanvas"),ov=$("overlayCanvas"),dst=$("dstCanvas"),reviewCanvas=$("reviewCanvas"),sctx=src.getContext("2d"),octx=ov.getContext("2d");
 let file=null,pts=[],drag=-1,correctedBlob=null,ocrText="",ocrConfidence=0,lastFields={},lastExtraction=null,scanSubmissionId=null,saving=false;
-let cropConfidence=0,knownMerchants=[];let mediaStream=null,cameraStarting=false,currentFacing="environment";
+let cropConfidence=0,cropSample=null,knownMerchants=[];let mediaStream=null,cameraStarting=false,currentFacing="environment";
 
 const normalize=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[^A-Z0-9%€.,:/\- ]+/g," ").replace(/\s+/g," ").trim();
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -29,7 +29,7 @@ function angleScore(p){
   return score/4
 }
 function polyArea(p){let a=0;for(let i=0;i<p.length;i++){const j=(i+1)%p.length;a+=p[i].x*p[j].y-p[j].x*p[i].y}return Math.abs(a/2)}
-function scoreQuad(p,w,h){const cov=polyArea(p)/(w*h),orth=angleScore(p),cx=p.reduce((a,x)=>a+x.x,0)/4,cy=p.reduce((a,x)=>a+x.y,0)/4,center=1-Math.min(1,Math.hypot(cx-w/2,cy-h/2)/Math.hypot(w/2,h/2));const covScore=cov<.12?0:cov>.98?.2:Math.min(1,cov/.55);return .52*covScore+.35*orth+.13*center}
+function scoreQuad(p,w,h){return window.Gasto360ScanR86.scoreQuad(sortPts(p),w,h,cropSample)}
 function defaultPts(){const w=src.width,h=src.height,m=Math.max(15,Math.min(w,h)*.045);pts=[{x:m,y:m},{x:w-m,y:m},{x:w-m,y:h-m},{x:m,y:h-m}];cropConfidence=.35;drawOverlay()}
 function drawOverlay(){
   ov.width=src.width;ov.height=src.height;octx.clearRect(0,0,ov.width,ov.height);if(pts.length!==4)return;
@@ -49,23 +49,23 @@ ov.onpointerup=()=>{drag=-1;$("cornerLoupe").hidden=true};
 
 async function autoEdges(){
   if(!(await waitCV(2500))){defaultPts();setCropBanner("No pudimos activar la detección automática. Ajusta los 4 puntos.", "warn");return}
-  let rgba,gray,blur,canny,thr,hierarchy,contours;const candidates=[];
+  let rgba,gray,blur,canny,thr,hierarchy,contours;const candidates=[];cropSample=null;
   try{
-    rgba=cv.imread(src);gray=new cv.Mat();blur=new cv.Mat();canny=new cv.Mat();thr=new cv.Mat();hierarchy=new cv.Mat();contours=new cv.MatVector();
+    const small=document.createElement("canvas"),factor=Math.min(1,1400/Math.max(src.width,src.height));small.width=Math.max(2,Math.round(src.width*factor));small.height=Math.max(2,Math.round(src.height*factor));const dc=small.getContext("2d",{willReadFrequently:true});dc.drawImage(src,0,0,small.width,small.height);cropSample={width:small.width,height:small.height,data:dc.getImageData(0,0,small.width,small.height).data};rgba=cv.imread(small);gray=new cv.Mat();blur=new cv.Mat();canny=new cv.Mat();thr=new cv.Mat();hierarchy=new cv.Mat();contours=new cv.MatVector();
     cv.cvtColor(rgba,gray,cv.COLOR_RGBA2GRAY);cv.equalizeHist(gray,gray);cv.GaussianBlur(gray,blur,new cv.Size(5,5),0);
     for(const mode of ["canny","threshold"]){
       contours.delete();contours=new cv.MatVector();hierarchy.delete();hierarchy=new cv.Mat();
       if(mode==="canny"){cv.Canny(blur,canny,40,140);cv.findContours(canny,contours,hierarchy,cv.RETR_LIST,cv.CHAIN_APPROX_SIMPLE)}
       else{cv.adaptiveThreshold(blur,thr,255,cv.ADAPTIVE_THRESH_GAUSSIAN_C,cv.THRESH_BINARY_INV,31,9);cv.findContours(thr,contours,hierarchy,cv.RETR_LIST,cv.CHAIN_APPROX_SIMPLE)}
       for(let i=0;i<contours.size();i++){
-        const c=contours.get(i),area=Math.abs(cv.contourArea(c));if(area<src.width*src.height*.08){c.delete();continue}
+        const c=contours.get(i),area=Math.abs(cv.contourArea(c));if(area<small.width*small.height*.003){c.delete();continue}
         const ap=new cv.Mat();cv.approxPolyDP(c,ap,.018*cv.arcLength(c,true),true);
-        if(ap.rows===4){const q=[];for(let r=0;r<4;r++)q.push({x:ap.intPtr(r,0)[0],y:ap.intPtr(r,0)[1]});candidates.push({q:sortPts(q),score:scoreQuad(q,src.width,src.height)})}
+        if(ap.rows===4){const q=[];for(let r=0;r<4;r++)q.push({x:ap.intPtr(r,0)[0]*src.width/small.width,y:ap.intPtr(r,0)[1]*src.height/small.height});candidates.push({q:sortPts(q),score:scoreQuad(q,src.width,src.height)})}
         ap.delete();c.delete()
       }
     }
     candidates.sort((a,b)=>b.score-a.score);
-    if(candidates.length){pts=candidates[0].q;cropConfidence=candidates[0].score;drawOverlay();setCropBanner(cropConfidence>.78?"Bordes detectados con alta confianza.":"Bordes detectados. Comprueba los 4 puntos.",cropConfidence>.65?"ok":"warn")}
+    if(candidates.length&&candidates[0].score>=.56){pts=candidates[0].q;cropConfidence=candidates[0].score;drawOverlay();setCropBanner(cropConfidence>.78?"Posible ticket aislado. Comprueba los bordes.":"Comprueba que los 4 puntos rodean el ticket y no la carpeta.",cropConfidence>.78?"ok":"warn")}
     else{defaultPts();setCropBanner("No encontramos los 4 bordes con suficiente seguridad. Ajusta los puntos manualmente.","warn")}
   }catch(e){console.error(e);defaultPts();setCropBanner("La detección automática no fue concluyente. Ajusta los 4 puntos.","warn")}
   finally{[rgba,gray,blur,canny,thr,hierarchy].forEach(x=>{try{x&&x.delete()}catch{}});try{contours&&contours.delete()}catch{}}
@@ -224,7 +224,7 @@ $("retakeBtn").onclick=reset;$("autoEdges").onclick=autoEdges;$("acceptCrop").on
 function canvasBlob(c,q=.94){return new Promise(res=>c.toBlob(res,"image/jpeg",q))}
 async function correctPerspective(){
   const p=sortPts(pts),dist=(x,y)=>Math.hypot(x.x-y.x,x.y-y.y),w=Math.max(400,Math.round(Math.max(dist(p[0],p[1]),dist(p[3],p[2])))),h=Math.max(500,Math.round(Math.max(dist(p[0],p[3]),dist(p[1],p[2]))));
-  if(!(await waitCV(2000))){dst.width=src.width;dst.height=src.height;dst.getContext("2d").drawImage(src,0,0);correctedBlob=await canvasBlob(dst);return}
+  if(!(await waitCV(2000))){const x=Math.max(0,Math.floor(Math.min(...p.map(v=>v.x)))),y=Math.max(0,Math.floor(Math.min(...p.map(v=>v.y)))),ww=Math.min(src.width-x,Math.ceil(Math.max(...p.map(v=>v.x))-x)),hh=Math.min(src.height-y,Math.ceil(Math.max(...p.map(v=>v.y))-y));dst.width=Math.max(1,ww);dst.height=Math.max(1,hh);dst.getContext("2d").drawImage(src,x,y,ww,hh,0,0,dst.width,dst.height);correctedBlob=await canvasBlob(dst);return}
   let a,sp,dp,M,out;try{a=cv.imread(src);sp=cv.matFromArray(4,1,cv.CV_32FC2,[p[0].x,p[0].y,p[1].x,p[1].y,p[2].x,p[2].y,p[3].x,p[3].y]);dp=cv.matFromArray(4,1,cv.CV_32FC2,[0,0,w-1,0,w-1,h-1,0,h-1]);M=cv.getPerspectiveTransform(sp,dp);out=new cv.Mat();cv.warpPerspective(a,out,M,new cv.Size(w,h),cv.INTER_CUBIC,cv.BORDER_REPLICATE,new cv.Scalar());dst.width=w;dst.height=h;cv.imshow(dst,out)}finally{[a,sp,dp,M,out].forEach(x=>{try{x&&x.delete()}catch{}})}
   correctedBlob=await canvasBlob(dst)
 }
