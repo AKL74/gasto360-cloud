@@ -70,7 +70,7 @@ const noReceipt=api.interpret([{label:'original',text:'ENTREGA EFECTIVO 2,00\nCU
 assert.equal(noReceipt.amount,null,'No interpretar IVA suelto como TOTAL');
 assert.equal(noReceipt.fiscal.status,'pendiente');
 const html=read('index.html'),scanner=read('scanner.js');
-assert.ok(html.includes('esenciales-r817.js?v=8.17'));
+assert.ok(html.includes('esenciales-r817.js?v=8.18'));
 assert.ok(html.indexOf('esenciales-r817.js')<html.indexOf('scanner.js'));
 assert.ok(scanner.includes('Gasto360EsencialesR817.interpret'));
 assert.ok(scanner.includes('Gasto360EsencialesR817.apply'));
