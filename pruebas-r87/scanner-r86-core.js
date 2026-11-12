@@ -4,11 +4,11 @@
 const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
 const clean=s=>String(s||'').replace(/[|_*~]/g,' ').replace(/\s+/g,' ').trim();
 const RULES=[
- [/MERCADONA/,'MERCADONA, S.A.','Alimentación'],
- [/\bALCAMPO\b/,'ALCAMPO','Alimentación'],
- [/\bLIDL\b/,'LIDL','Alimentación'],
+ [/MERCA\s*D[O0]NA|MERCAD[O0]NA/,'MERCADONA, S.A.','Alimentación'],
+ [/\bA[L1]CAM[PPR][O0]\b|\bAL\s+CAMPO\b/,'ALCAMPO','Alimentación'],
+ [/\bL[I1|]D[L1]\b/,'LIDL','Alimentación'],
  [/\bGRUPO DIA\b|\bSUPERMERCADOS DIA\b|\bDIA\b/,'GRUPO DÍA','Alimentación'],
- [/\bPRIMOR\b/,'PRIMOR','Salud'],
+ [/\bPRIM[O0]R\b/,'PRIMOR','Salud'],
  [/\b100 MONTADITOS\b/,'100 MONTADITOS','Alimentación'],
  [/\bTGB\b|THE GOOD BURGER/,'TGB The Good Burger','Alimentación'],
  [/\bASADOR REAL\b/,'ASADOR REAL','Alimentación'],
@@ -68,10 +68,11 @@ function kind(text){
  return /GETNET|REDSYS|TPV|NUM\.?\s*AUT|NUM\.?\s*OPERACION|AUTORIZACION|OPERACION\s*:\s*\d+|PAGO CON TARJETA/.test(u)&&!(/DESCRIPCION\s+ARTICULOS|BASE IMPONIBLE|FACTURA SIMPLIFICADA/.test(u))?'justificante_tarjeta':'ticket';
 }
 function detectTotals(lines,type){
+ const moneyLines=lines.map(l=>moneyVals(l));
  const ranked=[];
  lines.forEach((l,i)=>{
-  const u=norm(l),nums=moneyVals(l);
-  if(!nums.length)return;
+  const u=norm(l).replace(/\bT[O0][T7][A4][L1I]\b/g,'TOTAL').replace(/\bT[O0]TA[L1I]\b/g,'TOTAL'),nums=moneyLines[i];
+  if(!nums.length&&!moneyLines[i+1]?.length)return;
   const fiscal=/BASE IMPONIBLE|\bCUOTA\b|\bIVA\b|DESGLOSE|IMPUESTOS|RETENCION/.test(u);
   const isRefund=/CAMBIO|DEVOLUC|ENTREGADO|RECIBIDO|PUNTOS|AHORRO|DESCUENTO|IMPORTE DEVUELTO/.test(u);
   let marker=0;
@@ -80,8 +81,8 @@ function detectTotals(lines,type){
   else if(/IMPORTE\s+PAGADO|PAGO\s+TARJETA|TARJETA BANCARIA/.test(u))marker=110;
   else if(type==='justificante_tarjeta'&&/€|EUR|IMPORTE/.test(u))marker=90;
   if(!marker||fiscal||isRefund) return;
-  const value=nums[nums.length-1];
-  ranked.push({value,score:marker+(i/Math.max(1,lines.length))*15-(nums.length>2?30:0),line:i});
+  const value=nums.length?nums[nums.length-1]:moneyLines[i+1][moneyLines[i+1].length-1];
+  ranked.push({value,score:marker+(i/Math.max(1,lines.length))*15-(nums.length>2?30:0)-(nums.length?0:12),line:i});
  });
  ranked.sort((a,b)=>b.score-a.score);
  const alternative=[];
@@ -119,9 +120,9 @@ function items(lines){
 }
 function paymentFrom(text){
  const u=norm(text);
- if(/VISA|MASTERCARD|TARJETA BANCARIA|PAGO\s+TARJETA|TPV|GETNET/.test(u))return 'Tarjeta';
+ if(/VISA|MASTER\s*CARD|MAESTRO|TARJETA|PAGO\s+TARJETA|CONTACTLESS|TPV|GETNET|REDSYS|DAT[AÁ]FONO/.test(u))return 'Tarjeta';
  if(/\bBIZUM\b/.test(u))return 'Bizum';
- if(/EFECTIVO|CONTADO/.test(u))return 'Efectivo';
+ if(/EFECTIVO|CONTADO|EN METALICO/.test(u))return 'Efectivo';
  return 'Otro';
 }
 function taxId(text){
