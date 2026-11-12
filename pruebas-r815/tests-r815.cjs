@@ -31,6 +31,7 @@ assert.match(scanner,/Gasto360DesgloseR815\.analyze/);
 assert.match(scanner,/Gasto360OCRR815\.run/);
 assert.match(scanner,/accept-proposal/);assert.match(scanner,/confirmedByUser=true/);
 assert.match(ocr,/window\.Gasto360OCRR815\s*=/);
+assert.ok(!ocr.includes('if(i===2){const interim=combine(attempts)'), 'No cortar antes de cabecera y pie');
 assert.match(app,/R8\.15 TEST/);
 assert.ok(!/supabase\.from\(/i.test(app));
 console.log('PASS R8.15: 11 articulos, cuatro promociones 6.93, IVA 5.17, propuestas pendientes y sin Supabase');
