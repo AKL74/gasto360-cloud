@@ -146,7 +146,7 @@ function fiscalRows(passes){
     if(/^TOTAL\b/.test(line))break;
     const m=/^\s*(4|10|21)\s*%\s+(\d{1,4}[.,]\d{2})\s+(\d{1,4}[.,]\d{2})/.exec(line);
     if(!m)continue;
-   if(/^\s*TOTAL\b/i.test(u)&&amounts(line).length>1)continue; // Subtotal fiscal no es pago.
+
     const rate=Number(m[1]),base=parseMoney(m[2]),vat=parseMoney(m[3]);
     if(base===null||vat===null||Math.abs(round(base*rate/100)-vat)>.025)continue;
     rows.push({rate,code:null,base,vat,gross:round(base+vat),source:pass.label,raw:lines[j],review:false});
@@ -174,6 +174,7 @@ function amountEvidence(passes,products,fiscal,fields){
   for(const line of String(p.text||'').split(/\r?\n/)){
    const u=N(line),m=amounts(line).at(-1);
    if(!m)continue;
+   if(/^\s*TOTAL\b/i.test(u)&&amounts(line).length>1)continue; // TOTAL base/cuota IVA no es total de pago.
    if(/^\s*(?:IMPORTE\s*:|IMP\s*[.:]|TARJETA\s+BANCAR|TOTAL\b)/i.test(u))
     explicit.push({amount:m.value,source:p.label,kind:/^\s*IMPORTE\s*:/.test(u)?'importe':/^\s*TARJETA/.test(u)?'tarjeta':'total',raw:line});
   }
