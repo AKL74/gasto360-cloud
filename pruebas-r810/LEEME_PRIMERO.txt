@@ -1,0 +1,39 @@
+GASTO360 R8.10 — PRUEBA COMPARATIVA DEL OCR POR ZONAS
+===================================================
+No sustituye Gasto360 normal ni toca HUB o Supabase.
+La fotografia y los resultados no se suben a servidores de IA:
+OpenCV y Tesseract procesan en el propio navegador.
+Los resultados de prueba se pierden al cerrar o recargar la pestaña.
+
+DESDE EL MOVIL (SAMSUNG INTERNET)
+https://akl74.github.io/gasto360-cloud/pruebas-r810/?v=810
+
+DESDE WINDOWS
+Descomprime el ZIP de la rama escaneo-legible-r810-20261112.
+En la carpeta pruebas-r810, haz doble clic en
+INICIAR_GASTO360_R810_PRUEBAS.bat. Necesita Python 3.
+Servidor local en http://127.0.0.1:18910/
+
+CORRECCIONES PRINCIPALES
+- No se acepta "VENTA CONTADO" como comercio.
+- OCR por zonas: cabecera, centro y pie, cada una a mayor escala.
+- Contrastado suave que preserva letras finas del papel térmico.
+- Reunir información de las distintas zonas.
+- Mantener las reglas de total abonado y promociones de R8.8.
+- Avisa si el ticket ocupa demasiado poco en la fotografía.
+- Verificación automática de que los nombres de los motores coinciden.
+
+COMO PROBAR
+1. Vuelve a importar el mismo ticket de Lidl desde la GALERIA.
+2. Verifica el recorte, pulsa Continuar y comprueba los campos.
+3. Abre "Revisar imagen y texto OCR" para revisar las lecturas por zona.
+4. Si falta información, descarga el diagnóstico OCR JSON y revisa los
+   datos personales que contenga antes de compartirlo.
+
+IMPORTANTE
+Estas comprobaciones no prueban el OCR real de tu fotografía:
+son pruebas del código y textos representativos.
+Para resultados fiables es mejor que el ticket ocupe la mayor
+parte de la foto, sin que se recorten los bordes, y que esté
+bien iluminado y enfocado. La ampliación no recupera letras
+que ya son ilegibles en la imagen original.
