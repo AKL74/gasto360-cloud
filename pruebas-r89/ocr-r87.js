@@ -1,11 +1,11 @@
 (()=>{
 'use strict';
-/* Gasto360 R8.8: OCR local multinivel. Sin APIs ni envíos de tickets. */
+/* Gasto360 R8.9: OCR local multinivel, memoria controlada. Sin APIs ni envíos de tickets. */
 const clamp=(n,a,b)=>Math.max(a,Math.min(n,b));
 function makeCanvas(image,mode='original',section='full'){
   const x=0,y=section==='cabecera'?0:section==='pie'?Math.floor(image.height*.45):0;
   const w=image.width,h=section==='cabecera'?Math.ceil(image.height*.48):section==='pie'?image.height-y:image.height;
-  const scale=Math.min(3.2,4000/Math.max(w,h),Math.sqrt(6500000/Math.max(1,w*h)));
+  const scale=Math.min(2.8,2700/Math.max(w,h),Math.sqrt(2600000/Math.max(1,w*h)));
   const c=document.createElement('canvas');
   c.width=Math.max(1,Math.round(w*scale));c.height=Math.max(1,Math.round(h*scale));
   const ctx=c.getContext('2d',{willReadFrequently:true});
@@ -103,7 +103,7 @@ async function recognize(worker,image,label,psm,onProgress,progressStart,progres
 }
 async function run(image,extract,known,onProgress){
  if(!image?.width||!image?.height)throw Error('El recorte está vacío.');
- const attempts=[],diagnostics={version:'R8.8',width:image.width,height:image.height,passes:[],issues:[]};
+ const attempts=[],diagnostics={version:'R8.9',width:image.width,height:image.height,passes:[],issues:[]};
  let activeProgress=0,worker;
  function progress(v,t,d){activeProgress=Math.max(activeProgress,v);onProgress?.(activeProgress,t,d)}
  try{
@@ -122,8 +122,8 @@ async function run(image,extract,known,onProgress){
   ];
   for(let i=0;i<specs.length;i++){
    const [name,mode,region,psm]=specs[i];
-   if(i===2){const interim=combine(attempts);if(hasCritical(interim.fields)&&interim.fields.payment!=='Otro'&&attempts.some(a=>a.fields.items?.length))break}
-   if(i===4){
+   if(i===2&&attempts.length){const interim=combine(attempts);if(hasCritical(interim.fields)&&interim.fields.payment!=='Otro'&&attempts.some(a=>a.fields.items?.length))break}
+   if(i===4&&attempts.length){
     const interim=combine(attempts);
     if(hasCritical(interim.fields)&&interim.fields.payment!=='Otro')break;
    }
@@ -138,13 +138,14 @@ async function run(image,extract,known,onProgress){
       text:r.text});
    }catch(e){
     diagnostics.issues.push(name+': '+String(e.message||e));
-    if(!attempts.length&&i>=1)throw e;
+    if(!attempts.length&&i>=1)throw new Error('El reconocimiento OCR falló: '+diagnostics.issues.join(' | '));
    }finally{
     if(c){c.width=1;c.height=1}
    }
   }
   if(!attempts.length)throw Error('No se ha podido ejecutar ninguna lectura OCR.');
   const merged=combine(attempts);
+  if(diagnostics.issues.length)merged.fields.flags=[...(merged.fields.flags||[]),'Algunas lecturas no terminaron; verifica los datos.'];
   const all=attempts.map(r=>'=== '+r.label.toUpperCase()+' | '+Math.round(r.confidence)+'% ===\n'+(r.text||'[sin texto]')).join('\n\n');
   diagnostics.evidence=merged.evidence;
   diagnostics.empty=attempts.every(x=>x.text.length<8);
@@ -154,5 +155,5 @@ async function run(image,extract,known,onProgress){
   return {fields:merged.fields,text:all,confidence:Math.round(Math.max(...attempts.map(r=>r.confidence))),diagnostics};
  }finally{if(worker){try{await worker.terminate()}catch{}}}
 }
-window.Gasto360OCRR87={makeCanvas,run,combine};
+window.Gasto360OCRR89={makeCanvas,run,combine};
 })();
