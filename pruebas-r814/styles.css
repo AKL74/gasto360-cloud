@@ -64,3 +64,48 @@ main{max-width:1160px;margin:auto;padding:20px}.card,.login-card{background:#fff
 .camera-alternative button{width:100%;border:0;min-height:48px;margin-top:6px}
 .capture-meta{background:#e8f2f9;color:#17435e;padding:12px 14px;border:1px solid #a9c9d9;border-radius:12px;margin-bottom:12px;font-size:13px;line-height:1.55;overflow-wrap:anywhere}
 @media(max-width:680px){.capture-actions-native{grid-template-columns:1fr}.capture-button.primary-native{min-height:78px;font-size:17px}}
+
+/* R8.14: paneles industriales sencillos para lectura de compras en móvil */
+.breakdown-card{margin:16px 0;padding:15px;border:1px solid #35505a;border-radius:18px;background:#151f24;color:#dcebf2}
+.breakdown-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.breakdown-header h3{font-size:18px;margin:0}
+.breakdown-status{font-weight:750;font-size:12px;padding:6px 10px;border-radius:999px;background:#344a54;color:#f3f8fc}
+.breakdown-status.status-ok{background:#0c4936;color:#bdf1da}.breakdown-status.status-warn{background:#68471b;color:#fff0c3}
+.vat-table .table-scroll{overflow-x:auto;max-width:100%}
+.vat-table table{width:100%;border-collapse:collapse;font-size:13px;min-width:410px}
+.vat-table th,.vat-table td{padding:10px 8px;border-bottom:1px solid #36515c;text-align:right;white-space:nowrap}
+.vat-table th:first-child,.vat-table td:first-child{text-align:left}
+.vat-table p{padding:9px 0 0;margin:0;line-height:1.5}
+.small-notice{font-size:13px;color:#9fb5c3;line-height:1.5;margin:10px 0 0}
+.items-guide{font-size:14px;line-height:1.45;color:#b4c5d0;margin:8px 0 14px}
+.purchase-reconciliation{border:1px solid #5b5e50;border-radius:12px;background:#28261c;padding:14px;margin:0 0 14px;color:#fff0d0;overflow-wrap:anywhere}
+.purchase-reconciliation.ok{background:#122d23;border-color:#36876b;color:#d6f9e9}
+.purchase-reconciliation> b{display:block;font-size:14px;letter-spacing:.04em;margin-bottom:10px}
+.purchase-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.purchase-kpis span{display:block;border-radius:9px;background:#ffffff0d;padding:8px;font-size:12px;line-height:1.35}
+.purchase-kpis strong{font-size:17px;display:inline-block;margin-top:4px}
+.purchase-reconciliation p{font-size:13px;margin:12px 0 0;line-height:1.5}
+.unconfirmed-amount{border-left:3px solid #e8b356;padding-left:10px}
+.purchase-reconciliation button{margin-top:10px;max-width:100%;min-height:43px}
+.purchase-item{border:1px solid #40545d;border-radius:14px;background:#1d282e;padding:14px 15px;margin:10px 0;color:#e4eff7}
+.purchase-item.needs-review{border-color:#946739;background:#28251f}
+.purchase-item-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;line-height:1.45}
+.purchase-item-head>b{font-size:15px;max-width:70%}
+.status-tag{flex:none;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:750}
+.status-tag.confirmed{background:#174a35;color:#a9eecb}
+.status-tag.needs{background:#785329;color:#fff0ce}
+.purchase-item-money{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 0;font-size:13px;flex-wrap:wrap}
+.item-discount{color:#a7e6c5;font-weight:750;font-size:13px;margin:0 0 8px}
+.item-net{padding:8px 0 0;border-top:1px solid #4a5d61;font-size:14px}
+.item-net strong{float:right}
+.item-warning{color:#f8d49a;font-size:12px;line-height:1.5}
+.purchase-item details{margin-top:9px;font-size:12px}
+.purchase-item summary{cursor:pointer;color:#bed9e9}
+.item-evidence{padding:6px 0 0;line-height:1.6;overflow-wrap:anywhere}
+.purchase-item-edit{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.purchase-item-edit label{display:grid;gap:4px;font-size:12px;font-weight:750}
+.purchase-item-edit label:first-child{grid-column:1/-1}
+.purchase-item-edit input{width:100%;max-width:100%;min-width:0;font-size:16px;padding:11px 9px;border-radius:8px}
+.purchase-item button.delete-item{min-height:38px;margin-top:10px}
+#addItemBtn{margin-top:12px}
+@media(max-width:480px){.purchase-kpis strong{font-size:16px}.purchase-item-edit{grid-template-columns:repeat(2,minmax(0,1fr))}.items-card .section-head{align-items:flex-start;flex-wrap:wrap}}
