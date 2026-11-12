@@ -36,7 +36,7 @@ assert.equal(result.reconciliation.status,'pendiente','No cerrar cuando hay 1 im
 assert.equal(result.amountAudit.mismatches.length,2,'No confundir total de IVA con importe pagado');
 api.applyResult(fields,result,passes);
 assert.equal(fields.amount,9);
-assert.deepEqual(fields.amountCandidates,[9]);
+assert.equal(JSON.stringify(fields.amountCandidates),'[9]'); // Arrays de distintos contextos VM
 assert.equal(fields.taxId,'A12345678');
 assert.ok(fields.flags.some(x=>x.includes('corregido por conciliación')));
 const noTax=api.analyze(passes.map(x=>({...x,text:x.text.replace(/IVA BASE IMPONIBLE[\s\S]*$/,'')})),{amount:9.9});
