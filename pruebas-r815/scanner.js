@@ -96,7 +96,7 @@ async function autoEdges(){
       }catch(e){console.warn("Segmentación de papel no concluyente",e)}
       finally{[paperMask,kernel,paperHierarchy].forEach(x=>{try{x&&x.delete()}catch{}});try{paperContours&&paperContours.delete()}catch{}}
     }
-    // R8.14: detección alternativa del papel (fondo oscuro, silla o mesa).
+    // R8.15: detección alternativa del papel (fondo oscuro, silla o mesa).
     // Propuestas de imagen completa SIN agrandar artificialmente cada letra.
     // Se premia una tira vertical clara cerca del centro, frente a otros papeles laterales.
     {
@@ -134,7 +134,7 @@ async function autoEdges(){
           }
           contoursPaper.delete();contoursPaper=null;hierPaper.delete();hierPaper=null;
         }
-      }catch(e){console.warn("R8.14: segmentación alternativa no disponible",e)}
+      }catch(e){console.warn("R8.15: segmentación alternativa no disponible",e)}
       finally{[mask,kclose,kopen,contoursPaper,hierPaper].forEach(m=>{try{m&&m.delete()}catch{}})}
     }
     candidates.sort((a,b)=>b.score-a.score);
@@ -391,9 +391,9 @@ async function recognizeCanvas(c,label,base,span){
 }
 async function runOCR(){
   updateProgress(27,"Reconociendo texto…","Lectura en varias zonas y tratamientos de imagen");
-  if(!window.Gasto360OCRR814)throw new Error("No se cargó el motor OCR R8.14. Recarga la página.");
-  const r=await window.Gasto360OCRR814.run(dst,(raw,conf,known)=>window.Gasto360ScanR86.extract(raw,conf,known),knownMerchants,updateProgress);
-  const analysis=window.Gasto360DesgloseR814.analyze(r.diagnostics?.passes||[],r.fields);
+  if(!window.Gasto360OCRR815)throw new Error("No se cargó el motor OCR R8.15. Recarga la página.");
+  const r=await window.Gasto360OCRR815.run(dst,(raw,conf,known)=>window.Gasto360ScanR86.extract(raw,conf,known),knownMerchants,updateProgress);
+  const analysis=window.Gasto360DesgloseR815.analyze(r.diagnostics?.passes||[],r.fields);
   r.fields.items=analysis.items;
   r.fields.desglose=analysis;
   if(analysis.items.length){
@@ -435,7 +435,7 @@ function renderFinalReview(){
 function renderCandidateSelections(){const f=lastExtraction||{};chips("merchantCandidates",(f.merchantCandidates||[]).map(x=>x.name),$("ocrMerchant").value,v=>{$("ocrMerchant").value=v;renderCandidateSelections()});chips("amountCandidates",(f.amountCandidates||[]).filter((v,i,a)=>a.indexOf(v)===i),Number($("ocrAmount").value),v=>{$("ocrAmount").value=v;renderFiscalCheck();renderCandidateSelections()},v=>money(v))}
 let editingItems=false;
 function renderItems(){
- const f=lastExtraction||{},items=f.items||[],engine=window.Gasto360DesgloseR814;
+ const f=lastExtraction||{},items=f.items||[],engine=window.Gasto360DesgloseR815;
  $("itemsTitle").textContent=items.length?items.length+" artículo"+(items.length===1?"":"s")+" identificado"+(items.length===1?"":"s"):"Sin artículos identificados";
  $("editItemsBtn").textContent=editingItems?"Terminar edición":"Editar desglose";
  $("addItemBtn").hidden=!editingItems;
@@ -449,10 +449,13 @@ function renderItems(){
    if(!editingItems)return '<article class="purchase-item'+(provisional?' needs-review':'')+'">'+
     '<div class="purchase-item-head"><b>'+name+'</b><span class="status-tag '+(checked?'confirmed':'needs')+'">'+(checked?'Extraído':'Revisar')+'</span></div>'+
     '<div class="purchase-item-money"><span>'+(unit||'1 ud')+'</span><span>Bruto: <b>'+(it.gross!==null?money(it.gross):'Pendiente')+'</b></span></div>'+
-    (it.discount>0?'<div class="item-discount">Descuento asociado: −'+money(it.discount)+'</div>':'')+
+    (it.discount>0?'<div class="item-discount">Descuento recuperado: −'+money(it.discount)+' · comprobar</div>':'')+
+    (it.gross===null&&it.proposal!==undefined?'<div class="item-proposal"><div>Posible precio según otra lectura: <b>'+money(it.proposal)+'</b> (NO confirmado)</div><button type="button" class="light-btn accept-proposal" data-index="'+i+'">Confirmar precio tras revisarlo</button></div>':'')+
     '<div class="item-net">Neto: <strong>'+(it.net!==null?money(it.net):'Por confirmar')+'</strong></div>'+
     (notices.length?'<p class="item-warning">⚠ '+escapeHtml(notices.join(' '))+'</p>':'')+
-    '<details><summary>Procedencia de la lectura</summary><div class="item-evidence">'+evidence+'</div></details></article>';
+    '<details><summary>Procedencia de la lectura</summary><div class="item-evidence">'+evidence+
+    (it.candidates?.length?'<br><strong>Alternativas detectadas:</strong><br>'+it.candidates.map(x=>escapeHtml(x.source)+': '+money(x.value)).join('<br>'):'')+
+    '</div></details></article>';
    const input=(key,value,type='text')=>'<label>'+({name:'Producto',quantity:'Cantidad',gross:'Importe bruto €',discount:'Descuento €'}[key])+
      '<input data-index="'+i+'" data-field="'+key+'" type="'+type+'" '+(type==='number'?'min="0" step="0.01" inputmode="decimal" ':'')+
      'value="'+escapeHtml(n(value))+'"></label>';
@@ -467,7 +470,7 @@ function renderItems(){
  renderVatDetails();
 }
 function updateReconciliation(){
- const f=lastExtraction||{},api=window.Gasto360DesgloseR814,items=f.items||[];
+ const f=lastExtraction||{},api=window.Gasto360DesgloseR815,items=f.items||[];
  const paid=Number($("ocrAmount").value||0),sum=api.summary(items,paid);
  if(f.desglose)f.desglose.reconciliation=sum;
  const box=$("purchaseReconciliation");
@@ -484,7 +487,7 @@ function updateReconciliation(){
     ' podría ser '+money(sum.suggestion.amount)+' por diferencia matemática. <b>No está leído del ticket.</b></p>'+
     '<button class="light-btn" type="button" id="confirmDifference">Confirmar manualmente '+money(sum.suggestion.amount)+'</button>':'');
  const note=$("itemsReviewNote");
- note.textContent="Las promociones sin signo negativo se interpretan como descuentos por su etiqueta. Revisa las cantidades y el importe que falta antes de aceptar el desglose. El resultado se guarda solo en esta sesión.";
+ note.textContent="Descuentos recuperados por suma y orden de lectura. Son provisionales: comprueba su asociación con cada artículo. Los precios alternativos requieren aceptación manual. Todo queda solo en esta sesión.";
  const b=$("confirmDifference");if(b)b.onclick=()=>{
   const suggested=sum.suggestion,idx=items.findIndex(x=>x.id===suggested.itemId);
   if(idx<0)return;
@@ -526,12 +529,24 @@ $("itemsList").addEventListener("change",e=>{
  if(!prev)return;
  const candidate={...prev,[field]:input.value};
  try{
-  const normalized=window.Gasto360DesgloseR814.normalizeEditable(candidate);
+  const normalized=window.Gasto360DesgloseR815.normalizeEditable(candidate);
   lastExtraction.items[i]=normalized;renderItems();
  }catch(err){window.gasto360Cloud.toast("Revisa el artículo: "+err.message,"warn",6000);renderItems()}
 });
 $("itemsList").addEventListener("click",e=>{
- const b=e.target.closest("button.delete-item");if(!b||!lastExtraction)return;
+ if(!lastExtraction)return;
+ const accept=e.target.closest("button.accept-proposal");
+ if(accept){
+  const i=Number(accept.dataset.index),item=lastExtraction.items[i];
+  if(!item||!Number.isFinite(item.proposal))return;
+  const proposal=Number(item.proposal);
+  if(!window.confirm("¿Has comprobado en la imagen ORIGINAL que "+item.name+" cuesta "+money(proposal)+"? Este valor viene de una lectura alternativa y puede ser incorrecto."))return;
+  item.gross=proposal;item.net=window.Gasto360DesgloseR815.round(proposal-Number(item.discount||0));
+  item.manualReview=true;item.confirmedByUser=true;
+  item.reviewReasons=["Precio confirmado manualmente por usuario; propuesta OCR no validada automáticamente."];
+  renderItems();return;
+ }
+ const b=e.target.closest("button.delete-item");if(!b)return;
  const i=Number(b.dataset.index);if(!Number.isInteger(i))return;
  lastExtraction.items.splice(i,1);renderItems();
 });
@@ -539,7 +554,7 @@ $("itemsList").addEventListener("click",e=>{
 function buildPayload(){
   const items=(lastExtraction?.items||[]).map(x=>({...x}));
    const desglose=lastExtraction?.desglose||null;
-   if(desglose)desglose.reconciliation=window.Gasto360DesgloseR814.summary(items,Number($("ocrAmount").value||0));
+   if(desglose)desglose.reconciliation=window.Gasto360DesgloseR815.summary(items,Number($("ocrAmount").value||0));
    const fields={merchant:$("ocrMerchant").value.trim(),date:$("ocrDate").value,amount:Number($("ocrAmount").value),
     tax:$("ocrTax").value.trim()===""?null:Number($("ocrTax").value),
     concept:$("ocrConcept").value.trim(),category:$("ocrCategory").value,payment:$("ocrPayment").value,
@@ -547,7 +562,7 @@ function buildPayload(){
     ivaEstado:desglose?.fiscal?.status==="validado"&&
       Math.abs(desglose.fiscal.gross-Number($("ocrAmount").value||0))<=.025&&
       Math.abs(desglose.fiscal.tax-Number($("ocrTax").value||0))<=.025?"validado":"pendiente"};
-  const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.14",ocrDiagnostics,cropConfidence}};
+  const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.15",ocrDiagnostics,cropConfidence}};
   return {fields,scan,submissionId:scanSubmissionId}
 }
 async function doSave(force=false){
@@ -568,11 +583,11 @@ window.addEventListener("pagehide",()=>stopCamera());
 window.addEventListener("beforeunload",()=>stopCamera());
 $("downloadOcrDiagnostic").onclick=()=>{
   if(!ocrDiagnostics){window.gasto360Cloud.toast("Todavía no se ha ejecutado el reconocimiento.","warn");return}
-  const report={version:"R8.14",createdAt:new Date().toISOString(),diagnostics:ocrDiagnostics,fields:lastExtraction,
+  const report={version:"R8.15",createdAt:new Date().toISOString(),diagnostics:ocrDiagnostics,fields:lastExtraction,
     note:"Informe local: contiene texto reconocido del ticket. Revisa sus datos personales antes de compartirlo."};
   const blob=new Blob([JSON.stringify(report,null,2)],{type:"application/json"});
   const url=URL.createObjectURL(blob),link=document.createElement("a");
-  link.href=url;link.download="diagnostico_ocr_gasto360_r814_"+new Date().toISOString().slice(0,10)+".json";
+  link.href=url;link.download="diagnostico_ocr_gasto360_r815_"+new Date().toISOString().slice(0,10)+".json";
   document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);
 };
 window.gasto360Scanner={reset,stopCamera,startCamera};
