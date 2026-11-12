@@ -136,7 +136,7 @@ function addHints(rows,header){
    if(dist>0&&nextAnchor<Infinity&&nextAnchor-e.i<=dist&&
      ![...occupied].some(used=>used>e.i&&used<nextAnchor))return;
    // Los posibles importes de promoción, sin código A/B/C, no son precios confirmados.
-   const strength=e.vat?1.8:0,score=strength-Math.abs(dist)*.27+(dist<0?.55:0);
+   const strength=e.vat?1.8:0,score=strength-Math.abs(dist)*.36+(dist<0?.3:0);
    candidates.push({j,value:val,line:e.line,score,vat:e.vat});
   });
   candidates.sort((a,b)=>b.score-a.score);
