@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-/* Gasto360 R8.16: motor OCR restaurado exactamente de R8.7; fusión de campos corregida. Sin APIs ni envíos de tickets. */
+/* Gasto360 R8.17: motor OCR restaurado exactamente de R8.7; fusión de campos corregida. Sin APIs ni envíos de tickets. */
 const clamp=(n,a,b)=>Math.max(a,Math.min(n,b));
 function makeCanvas(image,mode='original',section='full'){
   const x=0,y=section==='cabecera'?0:section==='pie'?Math.floor(image.height*.45):0;
@@ -106,7 +106,7 @@ async function recognize(worker,image,label,psm,onProgress,progressStart,progres
 }
 async function run(image,extract,known,onProgress){
  if(!image?.width||!image?.height)throw Error('El recorte está vacío.');
- const attempts=[],diagnostics={version:'R8.16',width:image.width,height:image.height,passes:[],issues:[]};
+ const attempts=[],diagnostics={version:'R8.17',width:image.width,height:image.height,passes:[],issues:[]};
  let activeProgress=0,worker;
  function progress(v,t,d){activeProgress=Math.max(activeProgress,v);onProgress?.(activeProgress,t,d)}
  try{
@@ -125,7 +125,7 @@ async function run(image,extract,known,onProgress){
   ];
   for(let i=0;i<specs.length;i++){
    const [name,mode,region,psm]=specs[i];
-   // R8.16: ejecutar SIEMPRE cabecera y pie. El desglose necesita sus importes
+   // R8.17: ejecutar SIEMPRE cabecera y pie. El desglose necesita sus importes
    // aunque ya estén reconocidos comercio, fecha, total y forma de pago.
    // La lectura binaria opcional conserva su parada temprana.
    if(i===4){
