@@ -125,7 +125,9 @@ async function run(image,extract,known,onProgress){
   ];
   for(let i=0;i<specs.length;i++){
    const [name,mode,region,psm]=specs[i];
-   if(i===2){const interim=combine(attempts);if(hasCritical(interim.fields)&&interim.fields.payment!=='Otro'&&attempts.some(a=>a.fields.items?.length))break}
+   // R8.15: ejecutar SIEMPRE cabecera y pie. El desglose necesita sus importes
+   // aunque ya estén reconocidos comercio, fecha, total y forma de pago.
+   // La lectura binaria opcional conserva su parada temprana.
    if(i===4){
     const interim=combine(attempts);
     if(hasCritical(interim.fields)&&interim.fields.payment!=='Otro')break;
