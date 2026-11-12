@@ -15,6 +15,14 @@ assert.match(scanner,/renderVatDetails\(\)/);
 assert.match(scanner,/normalizeEditable\(candidate\)/);
 assert.match(scanner,/scannerVersion:"R8.14"/);
 assert.ok(app.includes('R8.14 TEST'));
+assert.ok(html.includes('id="compareSessionPrices"'));
+assert.ok(html.includes('id="sessionPriceComparison"'));
+assert.ok(html.includes('id="docItemsSummary"'));
+assert.match(app,/function comparePricesInSession\(\)/);
+assert.match(app,/const products=f\.items\|\|selected\.metadata\.items\|\|\[\]/);
+assert.match(app,/selected\.fields/);
+assert.ok(!/supabase\.from\(/i.test(app),'el entorno de pruebas no escribe en Supabase');
+
 const original=[
 'LIDL SUPERMERCADOS S.A.U.','Avda Reina Sofia S/N','11407 Jerez de la Frontera','NIF A60195278','EUR',
 'MIEL DE FLORES 3,09 B','PROMO LIDL PLUS 3,09',
