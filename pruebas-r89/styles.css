@@ -50,3 +50,13 @@ main{max-width:1160px;margin:auto;padding:20px}.card,.login-card{background:#fff
   .ticket-guide{inset:6% 9%}
   .live-camera-actions{position:sticky;bottom:0;background:#fff;margin:0 -15px -15px;padding:12px 15px calc(12px + env(safe-area-inset-bottom));z-index:5}
 }
+
+/* R8.9: suavizado exclusivamente visual y diagnóstico legible en móvil. */
+.quality-preview-control{display:grid;gap:4px;padding:10px 12px;margin:4px 0 14px;border:1px solid #b9cbd6;border-radius:12px;background:#eaf2f6;color:#16394d}
+.quality-preview-control label{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:750}
+.quality-preview-control input{width:22px;height:22px;min-height:22px;flex:none}
+.quality-preview-control small{font-size:12px;line-height:1.45}
+.canvas-wrap #srcCanvas.preview-smooth{filter:saturate(.58) contrast(.97);}
+#scanRuntimeError{background:#ffedeb;border:2px solid #b74b43;color:#5d201f}
+#scanRuntimeError p{white-space:pre-wrap;overflow-wrap:anywhere}
+#scanRuntimeError button{background:#fff;color:#4e2929;border:1px solid #c88b86}
