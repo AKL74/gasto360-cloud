@@ -2,7 +2,8 @@
 const $=id=>document.getElementById(id);
 const src=$("srcCanvas"),ov=$("overlayCanvas"),dst=$("dstCanvas"),reviewCanvas=$("reviewCanvas"),sctx=src.getContext("2d"),octx=ov.getContext("2d");
 let file=null,pts=[],drag=-1,correctedBlob=null,ocrText="",ocrConfidence=0,lastFields={},lastExtraction=null,scanSubmissionId=null,saving=false;
-let cropConfidence=0,knownMerchants=[];let mediaStream=null,cameraStarting=false,currentFacing="environment";
+let cropConfidence=0,cropSample=null,knownMerchants=[],ocrDiagnostics=null;let mediaStream=null,cameraStarting=false,currentFacing="environment";
+let captureMode="galería",sourceDimensions={width:0,height:0},liveCaptureMode="fotograma";
 
 const normalize=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[^A-Z0-9%€.,:/\- ]+/g," ").replace(/\s+/g," ").trim();
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -15,9 +16,10 @@ function setStep(n){
   window.scrollTo({top:0,behavior:"smooth"})
 }
 function reset(){
-  file=null;pts=[];drag=-1;correctedBlob=null;ocrText="";ocrConfidence=0;lastFields={};lastExtraction=null;scanSubmissionId=crypto.randomUUID?crypto.randomUUID():String(Date.now());saving=false;cropConfidence=0;
+  file=null;pts=[];drag=-1;correctedBlob=null;sourceDimensions={width:0,height:0};ocrText="";ocrConfidence=0;ocrDiagnostics=null;lastFields={};lastExtraction=null;scanSubmissionId=crypto.randomUUID?crypto.randomUUID():String(Date.now());saving=false;cropConfidence=0;
   src.width=src.height=ov.width=ov.height=dst.width=dst.height=reviewCanvas.width=reviewCanvas.height=1;
-  stopCamera();$("galleryFile").value="";$("scanDuplicateWarning").hidden=true;$("saveScanBtn").disabled=false;$("saveScanBtn").textContent="Guardar gasto + ticket";$("captureLauncher").hidden=false;$("liveCameraPanel").hidden=true;$("cameraPermissionHelp").hidden=true;setStep(1)
+  stopCamera();$("galleryFile").value="";if($("nativeCameraFile"))$("nativeCameraFile").value="";
+  if($("captureMeta"))$("captureMeta").hidden=true;$("scanDuplicateWarning").hidden=true;$("saveScanBtn").disabled=false;$("saveScanBtn").textContent="Guardar gasto + ticket";$("captureLauncher").hidden=false;$("liveCameraPanel").hidden=true;$("cameraPermissionHelp").hidden=true;setStep(1)
 }
 
 
@@ -29,7 +31,7 @@ function angleScore(p){
   return score/4
 }
 function polyArea(p){let a=0;for(let i=0;i<p.length;i++){const j=(i+1)%p.length;a+=p[i].x*p[j].y-p[j].x*p[i].y}return Math.abs(a/2)}
-function scoreQuad(p,w,h){const cov=polyArea(p)/(w*h),orth=angleScore(p),cx=p.reduce((a,x)=>a+x.x,0)/4,cy=p.reduce((a,x)=>a+x.y,0)/4,center=1-Math.min(1,Math.hypot(cx-w/2,cy-h/2)/Math.hypot(w/2,h/2));const covScore=cov<.12?0:cov>.98?.2:Math.min(1,cov/.55);return .52*covScore+.35*orth+.13*center}
+function scoreQuad(p,w,h){return window.Gasto360ScanR86.scoreQuad(sortPts(p),w,h,cropSample)}
 function defaultPts(){const w=src.width,h=src.height,m=Math.max(15,Math.min(w,h)*.045);pts=[{x:m,y:m},{x:w-m,y:m},{x:w-m,y:h-m},{x:m,y:h-m}];cropConfidence=.35;drawOverlay()}
 function drawOverlay(){
   ov.width=src.width;ov.height=src.height;octx.clearRect(0,0,ov.width,ov.height);if(pts.length!==4)return;
@@ -49,23 +51,94 @@ ov.onpointerup=()=>{drag=-1;$("cornerLoupe").hidden=true};
 
 async function autoEdges(){
   if(!(await waitCV(2500))){defaultPts();setCropBanner("No pudimos activar la detección automática. Ajusta los 4 puntos.", "warn");return}
-  let rgba,gray,blur,canny,thr,hierarchy,contours;const candidates=[];
+  let rgba,gray,blur,canny,thr,hierarchy,contours;const candidates=[];cropSample=null;
   try{
-    rgba=cv.imread(src);gray=new cv.Mat();blur=new cv.Mat();canny=new cv.Mat();thr=new cv.Mat();hierarchy=new cv.Mat();contours=new cv.MatVector();
+    const small=document.createElement("canvas"),factor=Math.min(1,1400/Math.max(src.width,src.height));small.width=Math.max(2,Math.round(src.width*factor));small.height=Math.max(2,Math.round(src.height*factor));const dc=small.getContext("2d",{willReadFrequently:true});dc.drawImage(src,0,0,small.width,small.height);cropSample={width:small.width,height:small.height,data:dc.getImageData(0,0,small.width,small.height).data};rgba=cv.imread(small);gray=new cv.Mat();blur=new cv.Mat();canny=new cv.Mat();thr=new cv.Mat();hierarchy=new cv.Mat();contours=new cv.MatVector();
     cv.cvtColor(rgba,gray,cv.COLOR_RGBA2GRAY);cv.equalizeHist(gray,gray);cv.GaussianBlur(gray,blur,new cv.Size(5,5),0);
     for(const mode of ["canny","threshold"]){
       contours.delete();contours=new cv.MatVector();hierarchy.delete();hierarchy=new cv.Mat();
       if(mode==="canny"){cv.Canny(blur,canny,40,140);cv.findContours(canny,contours,hierarchy,cv.RETR_LIST,cv.CHAIN_APPROX_SIMPLE)}
       else{cv.adaptiveThreshold(blur,thr,255,cv.ADAPTIVE_THRESH_GAUSSIAN_C,cv.THRESH_BINARY_INV,31,9);cv.findContours(thr,contours,hierarchy,cv.RETR_LIST,cv.CHAIN_APPROX_SIMPLE)}
       for(let i=0;i<contours.size();i++){
-        const c=contours.get(i),area=Math.abs(cv.contourArea(c));if(area<src.width*src.height*.08){c.delete();continue}
+        const c=contours.get(i),area=Math.abs(cv.contourArea(c));if(area<small.width*small.height*.003){c.delete();continue}
         const ap=new cv.Mat();cv.approxPolyDP(c,ap,.018*cv.arcLength(c,true),true);
-        if(ap.rows===4){const q=[];for(let r=0;r<4;r++)q.push({x:ap.intPtr(r,0)[0],y:ap.intPtr(r,0)[1]});candidates.push({q:sortPts(q),score:scoreQuad(q,src.width,src.height)})}
+        if(ap.rows===4){const q=[];for(let r=0;r<4;r++)q.push({x:ap.intPtr(r,0)[0]*src.width/small.width,y:ap.intPtr(r,0)[1]*src.height/small.height});candidates.push({q:sortPts(q),score:scoreQuad(q,src.width,src.height)})}
         ap.delete();c.delete()
       }
     }
+    // Fallback para papel curvado o bordes poco contrastados:
+    // máscara de papel claro, cierre morfológico y rectángulo envolvente.
+    if(!candidates.some(c=>c.score>=.78)){
+      let paperMask,kernel,paperContours,paperHierarchy;
+      try{
+        paperMask=new cv.Mat(small.height,small.width,cv.CV_8UC1);
+        for(let i=0,j=0;i<cropSample.data.length;i+=4,j++){
+          const r=cropSample.data[i],g=cropSample.data[i+1],b=cropSample.data[i+2];
+          const value=Math.max(r,g,b),minValue=Math.min(r,g,b);
+          const saturation=value?255*(value-minValue)/value:0;
+          paperMask.data[j]=(value>122&&saturation<74)?255:0;
+        }
+        kernel=cv.getStructuringElement(cv.MORPH_RECT,new cv.Size(5,7));
+        cv.morphologyEx(paperMask,paperMask,cv.MORPH_CLOSE,kernel);
+        paperContours=new cv.MatVector();paperHierarchy=new cv.Mat();
+        cv.findContours(paperMask,paperContours,paperHierarchy,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_SIMPLE);
+        for(let i=0;i<paperContours.size();i++){
+          const c=paperContours.get(i),area=Math.abs(cv.contourArea(c));
+          if(area>=small.width*small.height*.003&&area<=small.width*small.height*.75){
+            const r=cv.boundingRect(c),rx=src.width/small.width,ry=src.height/small.height;
+            const q=[{x:r.x*rx,y:r.y*ry},{x:(r.x+r.width)*rx,y:r.y*ry},
+                     {x:(r.x+r.width)*rx,y:(r.y+r.height)*ry},{x:r.x*rx,y:(r.y+r.height)*ry}];
+            const score=scoreQuad(q,src.width,src.height);
+            if(score>=.56)candidates.push({q,score:score-.025});
+          }
+          c.delete();
+        }
+      }catch(e){console.warn("Segmentación de papel no concluyente",e)}
+      finally{[paperMask,kernel,paperHierarchy].forEach(x=>{try{x&&x.delete()}catch{}});try{paperContours&&paperContours.delete()}catch{}}
+    }
+    // R8.18: detección alternativa del papel (fondo oscuro, silla o mesa).
+    // Propuestas de imagen completa SIN agrandar artificialmente cada letra.
+    // Se premia una tira vertical clara cerca del centro, frente a otros papeles laterales.
+    {
+      let mask=null,kclose=null,kopen=null,contoursPaper=null,hierPaper=null;
+      try{
+        mask=new cv.Mat(small.height,small.width,cv.CV_8UC1);
+        kclose=cv.getStructuringElement(cv.MORPH_RECT,new cv.Size(5,7));
+        kopen=cv.getStructuringElement(cv.MORPH_RECT,new cv.Size(3,3));
+        const cw=small.width,ch=small.height,allPixels=cw*ch,im=cropSample.data;
+        for(const threshold of [170,190,210]){
+          for(let i=0,j=0;i<im.length;i+=4,j++){
+            const r=im[i],g=im[i+1],b=im[i+2];
+            const hi=Math.max(r,g,b),lo=Math.min(r,g,b);
+            const saturation=hi?255*(hi-lo)/hi:0;
+            mask.data[j]=(hi>=threshold&&saturation<85)?255:0;
+          }
+          cv.morphologyEx(mask,mask,cv.MORPH_CLOSE,kclose);
+          cv.morphologyEx(mask,mask,cv.MORPH_OPEN,kopen);
+          contoursPaper=new cv.MatVector();hierPaper=new cv.Mat();
+          cv.findContours(mask,contoursPaper,hierPaper,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_SIMPLE);
+          for(let i=0;i<contoursPaper.size();i++){
+            const c=contoursPaper.get(i),r=cv.boundingRect(c);
+            const shapeArea=Math.abs(cv.contourArea(c));
+            const ratio=r.height/Math.max(1,r.width),frameShare=shapeArea/allPixels,fill=shapeArea/Math.max(1,r.width*r.height);
+            if(r.width>cw*.065&&r.height>ch*.20&&ratio>1.55&&ratio<9&&frameShare>.014&&frameShare<.55&&fill>.37){
+              const center=1-Math.min(1,Math.abs(r.x+r.width*.5-cw*.5)/(cw*.5));
+              const tall=Math.min(1,Math.max(0,(ratio-1.5)/2.0));
+              const score=.63+.10*tall+.12*center+.10*Math.min(1,frameShare*6);
+              const rx=src.width/cw,ry=src.height/ch;
+              const q=[{x:r.x*rx,y:r.y*ry},{x:(r.x+r.width)*rx,y:r.y*ry},
+                       {x:(r.x+r.width)*rx,y:(r.y+r.height)*ry},{x:r.x*rx,y:(r.y+r.height)*ry}];
+              candidates.push({q,score:Math.min(.94,score),method:"papel"});
+            }
+            c.delete();
+          }
+          contoursPaper.delete();contoursPaper=null;hierPaper.delete();hierPaper=null;
+        }
+      }catch(e){console.warn("R8.18: segmentación alternativa no disponible",e)}
+      finally{[mask,kclose,kopen,contoursPaper,hierPaper].forEach(m=>{try{m&&m.delete()}catch{}})}
+    }
     candidates.sort((a,b)=>b.score-a.score);
-    if(candidates.length){pts=candidates[0].q;cropConfidence=candidates[0].score;drawOverlay();setCropBanner(cropConfidence>.78?"Bordes detectados con alta confianza.":"Bordes detectados. Comprueba los 4 puntos.",cropConfidence>.65?"ok":"warn")}
+    if(candidates.length&&candidates[0].score>=.56){pts=candidates[0].q;cropConfidence=candidates[0].score;drawOverlay();setCropBanner(candidates[0].method==="papel"?"Ticket propuesto por contraste de papel. Comprueba las cuatro esquinas antes de continuar.":cropConfidence>.78?"Posible ticket aislado. Comprueba los bordes.":"Comprueba que los 4 puntos rodean el ticket y no la carpeta.",cropConfidence>.78?"ok":"warn")}
     else{defaultPts();setCropBanner("No encontramos los 4 bordes con suficiente seguridad. Ajusta los puntos manualmente.","warn")}
   }catch(e){console.error(e);defaultPts();setCropBanner("La detección automática no fue concluyente. Ajusta los 4 puntos.","warn")}
   finally{[rgba,gray,blur,canny,thr,hierarchy].forEach(x=>{try{x&&x.delete()}catch{}});try{contours&&contours.delete()}catch{}}
@@ -74,10 +147,10 @@ function setCropBanner(msg,kind="ok"){$("qualityBanner").hidden=false;$("quality
 
 function imageQuality(){
   if(!window.cv||!cv.Mat)return {blur:null,brightness:null};
-  let a,g,lap;try{a=cv.imread(src);g=new cv.Mat();lap=new cv.Mat();cv.cvtColor(a,g,cv.COLOR_RGBA2GRAY);const mean=cv.mean(g)[0];cv.Laplacian(g,lap,cv.CV_64F);const m=new cv.Mat(),sd=new cv.Mat();cv.meanStdDev(lap,m,sd);const variance=sd.doubleAt(0,0)**2;m.delete();sd.delete();return {blur:variance,brightness:mean}}catch{return {blur:null,brightness:null}}finally{[a,g,lap].forEach(x=>{try{x&&x.delete()}catch{}})}
+  let a,g,lap;try{const qc=document.createElement("canvas"),f=Math.min(1,900/Math.max(src.width,src.height));qc.width=Math.max(2,Math.round(src.width*f));qc.height=Math.max(2,Math.round(src.height*f));qc.getContext("2d").drawImage(src,0,0,qc.width,qc.height);a=cv.imread(qc);g=new cv.Mat();lap=new cv.Mat();cv.cvtColor(a,g,cv.COLOR_RGBA2GRAY);const mean=cv.mean(g)[0];cv.Laplacian(g,lap,cv.CV_64F);const m=new cv.Mat(),sd=new cv.Mat();cv.meanStdDev(lap,m,sd);const variance=sd.doubleAt(0,0)**2;m.delete();sd.delete();return {blur:variance,brightness:mean}}catch{return {blur:null,brightness:null}}finally{[a,g,lap].forEach(x=>{try{x&&x.delete()}catch{}})}
 }
 function clearCaptureState(){
-  file=null;pts=[];drag=-1;correctedBlob=null;ocrText="";ocrConfidence=0;lastFields={};lastExtraction=null;
+  file=null;pts=[];drag=-1;correctedBlob=null;ocrText="";ocrConfidence=0;ocrDiagnostics=null;lastFields={};lastExtraction=null;
   scanSubmissionId=crypto.randomUUID?crypto.randomUUID():String(Date.now());
   saving=false;cropConfidence=0;
   $("scanDuplicateWarning").hidden=true;
@@ -89,14 +162,16 @@ async function decodeCaptureToSource(f){
     try{bitmap=await createImageBitmap(f,{imageOrientation:"from-image"})}catch(e){console.warn("createImageBitmap fallo",e)}
   }
   if(bitmap){
-    const scale=Math.min(1,1900/Math.max(bitmap.width,bitmap.height));
+    sourceDimensions={width:bitmap.width,height:bitmap.height};
+    const scale=Math.min(1,3800/Math.max(bitmap.width,bitmap.height));
     src.width=Math.max(2,Math.round(bitmap.width*scale));src.height=Math.max(2,Math.round(bitmap.height*scale));
     sctx.clearRect(0,0,src.width,src.height);sctx.drawImage(bitmap,0,0,src.width,src.height);
     try{bitmap.close()}catch{}
     return;
   }
   const dataUrl=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(r.error||new Error("No se pudo leer la foto"));r.readAsDataURL(f)});
-  await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>{const scale=Math.min(1,1900/Math.max(im.naturalWidth,im.naturalHeight));src.width=Math.max(2,Math.round(im.naturalWidth*scale));src.height=Math.max(2,Math.round(im.naturalHeight*scale));sctx.clearRect(0,0,src.width,src.height);sctx.drawImage(im,0,0,src.width,src.height);resolve()};im.onerror=()=>reject(new Error("Formato de imagen no compatible"));im.src=dataUrl})
+  await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>{sourceDimensions={width:im.naturalWidth,height:im.naturalHeight};
+    const scale=Math.min(1,3800/Math.max(im.naturalWidth,im.naturalHeight));src.width=Math.max(2,Math.round(im.naturalWidth*scale));src.height=Math.max(2,Math.round(im.naturalHeight*scale));sctx.clearRect(0,0,src.width,src.height);sctx.drawImage(im,0,0,src.width,src.height);resolve()};im.onerror=()=>reject(new Error("Formato de imagen no compatible"));im.src=dataUrl})
 }
 
 function stopCamera(){
@@ -133,7 +208,7 @@ async function startCamera(){
   $("captureLiveBtn").disabled=true;
   try{
     let stream;
-    const preferred={audio:false,video:{facingMode:{ideal:currentFacing},width:{ideal:1920},height:{ideal:2560}}};
+    const preferred={audio:false,video:{facingMode:{ideal:currentFacing},width:{ideal:2560},height:{ideal:1920}}};
     try{
       stream=await navigator.mediaDevices.getUserMedia(preferred);
     }catch(first){
@@ -152,7 +227,8 @@ async function startCamera(){
       if(video.readyState>=1){cleanup();resolve()}
     });
     await video.play();
-    $("cameraStatus").textContent="Cámara lista. Encaja el ticket completo y pulsa Capturar.";
+    $("cameraStatus").textContent="Vista integrada: "+video.videoWidth+" × "+video.videoHeight+" px. Para mejor nitidez usa la cámara del teléfono.";
+    if(video.videoWidth*video.videoHeight<1600000)window.gasto360Cloud.toast("Vista integrada limitada a "+video.videoWidth+" × "+video.videoHeight+". Recomendamos Cámara del teléfono.","warn",6500);
     $("captureLiveBtn").disabled=false;
     await enumerateRearCameraSupport();
   }catch(err){
@@ -172,16 +248,25 @@ async function captureLiveFrame(){
   const w=video.videoWidth,h=video.videoHeight;
   if(!mediaStream||!w||!h){window.gasto360Cloud.toast("La cámara todavía no está lista.","warn");return}
   $("captureLiveBtn").disabled=true;
+  liveCaptureMode="fotograma";
   $("cameraStatus").textContent="Capturando ticket...";
-  const c=document.createElement("canvas");c.width=w;c.height=h;
-  const ctx=c.getContext("2d",{alpha:false});
-  ctx.drawImage(video,0,0,w,h);
-  const blob=await new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error("No se pudo crear la fotografía")),"image/jpeg",.96));
-  const captured=new File([blob],`ticket_${new Date().toISOString().replace(/[:.]/g,"-")}.jpg`,{type:"image/jpeg",lastModified:Date.now()});
+  let blob=null;
+  if(window.ImageCapture&&mediaStream.getVideoTracks().length){
+    try{blob=await new ImageCapture(mediaStream.getVideoTracks()[0]).takePhoto();if(blob)liveCaptureMode="foto nativa del flujo"}catch(e){console.warn("Foto de máxima resolución no disponible; usamos fotograma",e)}
+  }
+  if(!blob){
+    liveCaptureMode="fotograma";
+    if(w*h<1600000)window.gasto360Cloud.toast("La cámara integrada ofrece solo "+w+" × "+h+" píxeles. Para una imagen nítida utiliza Cámara del teléfono.","warn",8500);
+    const c=document.createElement("canvas");c.width=w;c.height=h;
+    const ctx=c.getContext("2d",{alpha:false});ctx.drawImage(video,0,0,w,h);
+    blob=await new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error("No se pudo crear la fotografía")),"image/jpeg",.96));
+  }
+  const mime=blob.type||"image/jpeg",ext=mime.includes("png")?"png":"jpg";
+  const captured=new File([blob],"ticket_"+new Date().toISOString().replace(/[:.]/g,"-")+"."+ext,{type:mime,lastModified:Date.now()});
   stopCamera();
   $("liveCameraPanel").hidden=true;
   $("captureLauncher").hidden=false;
-  await loadFile(captured);
+  await loadFile(captured,liveCaptureMode==="foto nativa del flujo"?"cámara integrada / ImageCapture":"cámara integrada / fotograma de vídeo");
 }
 async function switchCamera(){
   currentFacing=currentFacing==="environment"?"user":"environment";
@@ -189,15 +274,26 @@ async function switchCamera(){
   await startCamera();
 }
 
-async function loadFile(f){
+async function loadFile(f,origin="galería"){
   if(!f){window.gasto360Cloud.toast("La cámara no entregó ninguna foto. Inténtalo de nuevo.","warn");return}
   clearCaptureState();
-  file=f;
+  file=f;captureMode=origin;
   setStep(2);
   $("cropHint").innerHTML='<span class="capture-return-status"><span class="mini-spinner"></span>Foto recibida. Preparando encuadre...</span>';
   $("qualityBanner").hidden=true;
   try{
     await decodeCaptureToSource(f);
+    const orig=sourceDimensions.width*sourceDimensions.height;
+    const notice=[];
+    if(orig<1800000)notice.push("Resolución original baja: acerca el móvil y activa cámara nativa");
+    if(origin.includes("fotograma"))notice.push("Captura de vídeo: suele tener menos detalle que la cámara nativa");
+    const meta=$("captureMeta");
+    if(meta){
+      meta.hidden=false;
+      meta.textContent="Origen: "+origin+" · Original: "+sourceDimensions.width+" × "+sourceDimensions.height+
+        " px · Procesamiento: "+src.width+" × "+src.height+" px · Archivo: "+(f.size/1048576).toFixed(2)+" MB"+
+        (notice.length?" · "+notice.join(". "):"");
+    }
     defaultPts();
     $("cropHint").textContent="Analizando la foto y buscando los bordes...";
     await waitCV(1800);
@@ -218,24 +314,35 @@ $("captureLiveBtn").onclick=()=>captureLiveFrame();
 $("cancelLiveCamera").onclick=()=>{stopCamera();$("liveCameraPanel").hidden=true;$("captureLauncher").hidden=false;$("cameraStatus").textContent="Preparando cámara trasera..."};
 $("switchCameraBtn").onclick=()=>switchCamera();
 $("galleryFile").addEventListener("click",e=>{e.currentTarget.value=""});
-$("galleryFile").addEventListener("change",e=>loadFile(e.currentTarget.files&&e.currentTarget.files[0]));
-$("retakeBtn").onclick=reset;$("autoEdges").onclick=autoEdges;$("acceptCrop").onclick=()=>processScan();
+$("galleryFile").addEventListener("change",e=>loadFile(e.currentTarget.files&&e.currentTarget.files[0],"galería"));
+$("nativeCameraFile").addEventListener("click",e=>{e.currentTarget.value=""});
+$("nativeCameraFile").addEventListener("change",e=>loadFile(e.currentTarget.files&&e.currentTarget.files[0],"cámara nativa del teléfono"));
+$("retakeBtn").onclick=reset;$("autoEdges").onclick=autoEdges;$("acceptCrop").onclick=()=>{
+  if(pts.length===4){const p=sortPts(pts),wid=Math.max(Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y),Math.hypot(p[2].x-p[3].x,p[2].y-p[3].y));if(wid<400)window.gasto360Cloud.toast("El ticket tiene solo "+Math.round(wid)+" píxeles de ancho. Una foto más cercana ayudará a leer las letras.","warn",5500);}
+  const area=pts.length===4?polyArea(sortPts(pts))/Math.max(1,src.width*src.height):1;
+  if(cropConfidence<.5&&area>.65){
+    setCropBanner("El recuadro rodea casi toda la fotografía, no el ticket. Ajusta las cuatro esquinas al papel antes de continuar.","warn");
+    window.gasto360Cloud.toast("El encuadre sigue siendo demasiado amplio. Ajusta los cuatro puntos al ticket.","warn",6500);
+    return;
+  }
+  processScan();
+};
 
 function canvasBlob(c,q=.94){return new Promise(res=>c.toBlob(res,"image/jpeg",q))}
 async function correctPerspective(){
   const p=sortPts(pts),dist=(x,y)=>Math.hypot(x.x-y.x,x.y-y.y),w=Math.max(400,Math.round(Math.max(dist(p[0],p[1]),dist(p[3],p[2])))),h=Math.max(500,Math.round(Math.max(dist(p[0],p[3]),dist(p[1],p[2]))));
-  if(!(await waitCV(2000))){dst.width=src.width;dst.height=src.height;dst.getContext("2d").drawImage(src,0,0);correctedBlob=await canvasBlob(dst);return}
+  if(!(await waitCV(2000))){const x=Math.max(0,Math.floor(Math.min(...p.map(v=>v.x)))),y=Math.max(0,Math.floor(Math.min(...p.map(v=>v.y)))),ww=Math.min(src.width-x,Math.ceil(Math.max(...p.map(v=>v.x))-x)),hh=Math.min(src.height-y,Math.ceil(Math.max(...p.map(v=>v.y))-y));dst.width=Math.max(1,ww);dst.height=Math.max(1,hh);dst.getContext("2d").drawImage(src,x,y,ww,hh,0,0,dst.width,dst.height);correctedBlob=await canvasBlob(dst);return}
   let a,sp,dp,M,out;try{a=cv.imread(src);sp=cv.matFromArray(4,1,cv.CV_32FC2,[p[0].x,p[0].y,p[1].x,p[1].y,p[2].x,p[2].y,p[3].x,p[3].y]);dp=cv.matFromArray(4,1,cv.CV_32FC2,[0,0,w-1,0,w-1,h-1,0,h-1]);M=cv.getPerspectiveTransform(sp,dp);out=new cv.Mat();cv.warpPerspective(a,out,M,new cv.Size(w,h),cv.INTER_CUBIC,cv.BORDER_REPLICATE,new cv.Scalar());dst.width=w;dst.height=h;cv.imshow(dst,out)}finally{[a,sp,dp,M,out].forEach(x=>{try{x&&x.delete()}catch{}})}
   correctedBlob=await canvasBlob(dst)
 }
 function updateProgress(p,title,detail){$("ocrProgressBar").style.width=`${clamp(p,0,100)}%`;$("processingTitle").textContent=title;$("processingDetail").textContent=detail}
 async function processScan(){
   setStep(3);updateProgress(8,"Corrigiendo perspectiva...","Alineando el documento");
-  try{await correctPerspective();updateProgress(25,"Mejorando legibilidad...","Contraste, escala y limpieza");knownMerchants=await window.gasto360Cloud.getKnownMerchants();await runOCR();renderFinalReview();setStep(4)}catch(e){console.error(e);window.gasto360Cloud.toast("No se pudo completar el análisis. Puedes repetir la foto.","error",6000);setStep(2)}
+  try{await correctPerspective();updateProgress(25,"Mejorando legibilidad...","Contraste, escala y limpieza");try{knownMerchants=await window.gasto360Cloud.getKnownMerchants()}catch(e){console.warn("Sin comercios previos",e);knownMerchants=[]}await runOCR();renderFinalReview();setStep(4)}catch(e){console.error(e);window.gasto360Cloud.toast("Error en el análisis: "+String(e?.message||e).slice(0,180),"error",8500);setStep(2)}
 }
 
 function makeOcrCanvas(mode="gray"){
-  const c=document.createElement("canvas"),ctx=c.getContext("2d"),scale=Math.min(1.7,2200/Math.max(dst.width,dst.height));c.width=Math.round(dst.width*scale);c.height=Math.round(dst.height*scale);ctx.drawImage(dst,0,0,c.width,c.height);
+  const c=document.createElement("canvas"),ctx=c.getContext("2d"),scale=Math.min(3.2,3200/Math.max(dst.width,dst.height),Math.max(1,1100/Math.max(1,dst.width)));c.width=Math.round(dst.width*scale);c.height=Math.round(dst.height*scale);ctx.drawImage(dst,0,0,c.width,c.height);
   const im=ctx.getImageData(0,0,c.width,c.height),a=im.data,gray=new Uint8Array(c.width*c.height);let lo=255,hi=0;for(let i=0,j=0;i<a.length;i+=4,j++){const g=Math.round(.299*a[i]+.587*a[i+1]+.114*a[i+2]);gray[j]=g;lo=Math.min(lo,g);hi=Math.max(hi,g)}
   const span=Math.max(35,hi-lo);for(let i=0,j=0;i<a.length;i+=4,j++){let g=(gray[j]-lo)*255/span;g=clamp((g-128)*1.35+128,0,255);if(mode==="binary")g=g>158?255:0;a[i]=a[i+1]=a[i+2]=g;a[i+3]=255}ctx.putImageData(im,0,0);return c
 }
@@ -275,13 +382,7 @@ function detectTotals(lines){
   return {total:best?.value??"",tax:Number(tax.toFixed(2)),base:base===null?null:Number(base.toFixed(2)),candidates:cand.map(x=>x.value)}
 }
 function paymentFrom(text){const u=normalize(text);if(/EFECTIVO|ENTREGA EFECTIVO/.test(u))return"Efectivo";if(/VISA|MASTERCARD|TARJETA|CARD/.test(u))return"Tarjeta";if(/BIZUM/.test(u))return"Bizum";return"Otro"}
-function extractReceipt(text,baseConf){
-  const lines=text.split(/\r?\n/).map(cleanLine).filter(x=>x.length>1),mc=merchantCandidates(lines,text),tot=detectTotals(lines),items=extractItems(lines),date=parseDate(text),taxId=detectTaxId(text),invoiceNo=detectInvoice(text);
-  const merchant=mc[0]?.name||"",knownCat=mc[0]?.cat,concept=items.length?items.slice(0,3).map(x=>x.name).join(" + "):(merchant?`Compra en ${merchant}`:""),category=knownCat||inferCategory(`${merchant} ${concept}`),payment=paymentFrom(text);
-  const conf={merchant:merchant?(mc[0]?.score>=95?98:Math.min(90,mc[0]?.score||70)):20,date:date?96:20,amount:tot.total!==""?98:20,tax:tot.tax>0?94:35,concept:items.length?92:(merchant?58:25)};
-  const critical=[conf.merchant,conf.date,conf.amount,conf.concept],overall=Math.round((Number(baseConf||0)+critical.reduce((a,b)=>a+b,0))/5);
-  return {merchant,date,amount:tot.total,tax:tot.tax,base:tot.base,concept,category,payment,taxId,invoiceNo,items,merchantCandidates:mc,amountCandidates:tot.candidates,confidence:conf,overall,lines}
-}
+function extractReceipt(text,baseConf){return window.Gasto360ScanR86.extract(text,baseConf,knownMerchants)}
 function extractionScore(f){return (f.merchant?30:0)+(f.date?20:0)+(f.amount!==""?30:0)+(f.tax>0?8:0)+(f.items?.length?15:0)+(f.taxId?5:0)+(f.invoiceNo?5:0)+f.overall/10}
 async function recognizeCanvas(c,label,base,span){
   const blob=await canvasBlob(c,.95);let last=0;
@@ -289,12 +390,46 @@ async function recognizeCanvas(c,label,base,span){
   return {text:r.data.text||"",confidence:Number(r.data.confidence||0)}
 }
 async function runOCR(){
-  updateProgress(32,"Leyendo ticket...","Primera lectura");
-  const a=await recognizeCanvas(makeOcrCanvas("gray"),"1/2",32,38),fa=extractReceipt(a.text,a.confidence);
-  let best={r:a,f:fa};
-  const needsSecond=!fa.merchant||fa.amount===""||fa.overall<82||!fa.items.length||(!fa.tax&&/IVA|CUOTA/.test(normalize(a.text)));
-  if(needsSecond){updateProgress(72,"Comprobando resultados...","Segunda lectura para resolver dudas");const b=await recognizeCanvas(makeOcrCanvas("binary"),"2/2",72,22),fb=extractReceipt(b.text,b.confidence);if(extractionScore(fb)>extractionScore(fa))best={r:b,f:fb}}
-  ocrText=best.r.text;ocrConfidence=best.r.confidence;lastExtraction=best.f;lastFields=best.f;updateProgress(98,"Validando importes...","Comprobando total e IVA");await sleep(250)
+  updateProgress(27,"Reconociendo texto…","Lectura en varias zonas y tratamientos de imagen");
+  if(!window.Gasto360OCRR816)throw new Error("No se cargó el motor OCR R8.18. Recarga la página.");
+  const r=await window.Gasto360OCRR816.run(dst,(raw,conf,known)=>window.Gasto360ScanR86.extract(raw,conf,known),knownMerchants,updateProgress);
+  const analysis=window.Gasto360DesgloseR816.analyze(r.diagnostics?.passes||[],r.fields);
+  window.Gasto360DesgloseR816.applyResult(r.fields,analysis,r.diagnostics?.passes||[]);
+  // Prioridad R8.18: empresa, fecha, TOTAL, IVA y pago se validan de forma independiente.
+  const essential=window.Gasto360EsencialesR817.interpret(r.diagnostics?.passes||[],r.fields);
+  window.Gasto360EsencialesR817.apply(r.fields,analysis,essential);
+  window.Gasto360RevisionR818.apply(r.fields,analysis,r.diagnostics?.passes||[]);
+// Concepto resumido para tickets con detalle: el listado completo queda en artículos.
+if(analysis?.amountAudit?.verified && analysis.items.length>3 &&
+   (r.fields.concept||'').includes('+')){
+  r.fields.concept='Compra en '+(r.fields.merchant||'comercio')+' ('+analysis.items.length+' artículos)';
+  r.fields.confidence.concept=85;
+}
+  analysis.version='R8.18';
+  r.fields.items=analysis.items;
+  r.fields.desglose=analysis;
+  // Una cifra identificada y cuadrada como descuento no debe sugerirse como TOTAL.
+  const discount=Number(analysis.discountAudit?.stated||0),amount=Number(r.fields.amount||0);
+  if(discount>0&&amount>0&&Math.abs(discount-amount)>.025){
+    const remaining=(r.fields.amountCandidates||[]).filter(v=>Math.abs(Number(v)-discount)>.025);
+    if(remaining.length){
+      r.fields.amountCandidates=remaining;
+      if(remaining.every(v=>Math.abs(Number(v)-amount)<.025))
+        r.fields.flags=(r.fields.flags||[]).filter(v=>!v.includes("Hay varios importes reconocidos"));
+    }
+  }
+  if(analysis.items.length){
+    r.fields.flags=(r.fields.flags||[]).filter(x=>!x.includes("No se han reconocido productos individuales."));
+  }
+  if(analysis.fiscal.status==="validado"){
+    r.fields.tax=analysis.fiscal.tax;r.fields.base=analysis.fiscal.base;
+    r.fields.fiscalValidated=true;
+    r.fields.confidence.tax=analysis.fiscal.inferredRows?82:94;
+    r.fields.flags=(r.fields.flags||[]).filter(x=>!x.includes("IVA no verificado"));
+  }else if(!r.fields.fiscalValidated){r.fields.tax=null;r.fields.base=null;}
+  ocrText=r.text||"";ocrConfidence=r.confidence;ocrDiagnostics=r.diagnostics;
+  lastExtraction=r.fields;lastFields=r.fields;
+  await sleep(120);
 }
 function confClass(n){return n>=85?"good":n>=60?"warn":"bad"}
 function setField(id,conf){const el=$(id);el.classList.remove("good","warn","bad");el.classList.add(confClass(conf))}
@@ -303,36 +438,189 @@ function chips(id,values,selected,onClick,fmt=x=>String(x)){
   const host=$(id);host.innerHTML="";for(const v of values.slice(0,5)){const b=document.createElement("button");b.type="button";b.className="candidate-chip"+(String(v)===String(selected)?" selected":"");b.textContent=fmt(v);b.onclick=()=>onClick(v);host.appendChild(b)}
 }
 function renderFinalReview(){
-  const f=lastExtraction||{};$("ocrMerchant").value=f.merchant||"";$("ocrDate").value=f.date||new Date().toISOString().slice(0,10);$("ocrAmount").value=f.amount??"";$("ocrTax").value=f.tax??0;$("ocrConcept").value=f.concept||"";$("ocrCategory").value=f.category||"Otros";$("ocrPayment").value=f.payment||"Otro";$("ocrTaxId").value=f.taxId||"";$("ocrInvoiceNo").value=f.invoiceNo||"";
+  const f=lastExtraction||{};$("ocrMerchant").value=f.merchant||"";$("ocrDate").value=f.date||"";$("ocrAmount").value=f.amount??"";$("ocrTax").value=f.tax??"";$("ocrConcept").value=f.concept||"";$("ocrCategory").value=f.category||"Otros";$("ocrPayment").value=f.payment||"Otro";$("ocrTaxId").value=f.taxId||"";$("ocrInvoiceNo").value=f.invoiceNo||"";
   $("confMerchant").textContent=confText(f.confidence?.merchant);$("confDate").textContent=confText(f.confidence?.date);$("confAmount").textContent=confText(f.confidence?.amount);$("confTax").textContent=confText(f.confidence?.tax);$("confConcept").textContent=confText(f.confidence?.concept);$("ocrOverallConfidence").textContent=`OCR ${Math.round(f.overall||0)}%`;
   setField("fieldMerchant",f.confidence?.merchant||0);setField("fieldDate",f.confidence?.date||0);setField("fieldAmount",f.confidence?.amount||0);setField("fieldTax",f.confidence?.tax||0);setField("fieldConcept",f.confidence?.concept||0);
   chips("merchantCandidates",(f.merchantCandidates||[]).map(x=>x.name),f.merchant,v=>{$("ocrMerchant").value=v;renderCandidateSelections()} );
   chips("amountCandidates",(f.amountCandidates||[]).filter((v,i,a)=>a.indexOf(v)===i),f.amount,v=>{$("ocrAmount").value=v;renderFiscalCheck();renderCandidateSelections()},v=>money(v));
-  renderItems(f.items||[]);renderFiscalCheck();$("ocrRawText").textContent=ocrText;
+  const e=f.desglose?.essential||{},fisc=e.fiscal||{};
+  const val=(value,ok)=>'<strong>'+(ok?escapeHtml(String(value)):'Por confirmar')+'</strong>';
+  const card=(label,value,ok,details='')=>'<div class="essential-cell '+(ok?'verified':'review')+'"><span>'+label+'</span>'+val(value,ok)+(details?'<small>'+escapeHtml(details)+'</small>':'')+'</div>';
+  $("essentialSummary").innerHTML='<h3>Datos prioritarios del ticket</h3><p>Se verifican antes de desglosar los artículos.</p><div class="essential-grid">'+
+    card('Empresa',f.merchant,!!f.merchant && (f.confidence?.merchant||0)>=75)+
+    card('Fecha',f.date,!!f.date && (f.confidence?.date||0)>=75)+
+    card('TOTAL',f.amount===null?'':money(f.amount),f.amount!==null && (f.confidence?.amount||0)>=80,e.amountReason||'')+
+    card('IVA',f.tax!==null?money(f.tax):'',f.fiscalValidated===true,'')+
+    card('Forma de pago',f.payment,!!f.payment&&f.payment!=='Otro')+
+    '</div>';
+  editingItems=false;renderItems();renderFiscalCheck();$("ocrRawText").textContent=ocrText;
+  const d=ocrDiagnostics||{},attempts=d.passes||[],diag=$("ocrDiagnosticSummary");
+  if(diag){
+    const detected=attempts.map(p=>p.label+": "+p.characters+" caracteres ("+p.confidence+" % OCR)").join(" | ");
+    const missing=["merchant","date","amount","payment"].filter(k=>k==="payment"?f.payment==="Otro":(f[k]===""||!f[k])).length;
+    diag.textContent=attempts.length?(d.empty?"No se han reconocido caracteres legibles. Repite la foto o utiliza una imagen original de mayor resolución. ":missing?"OCR realizado, pero faltan "+missing+" datos principales. ":"OCR realizado. Revisa las cifras. ")+detected:"No se ejecutó ninguna lectura OCR.";
+  }
   reviewCanvas.width=dst.width;reviewCanvas.height=dst.height;reviewCanvas.getContext("2d").drawImage(dst,0,0);
-  const low=["merchant","date","amount","concept"].filter(k=>(f.confidence?.[k]||0)<75).length;$("reviewSummary").textContent=low?`Hay ${low} campo${low===1?"":"s"} que conviene revisar.`:"La lectura es consistente. Revisa y guarda.";
+  const low=["merchant","date","amount","concept"].filter(k=>(f.confidence?.[k]||0)<75).length;const notices=f.flags||[];$("reviewSummary").textContent=notices.length?notices.join(" "):(low?"Hay "+low+" campos que conviene revisar.":"Comprueba los datos con el ticket antes de guardar.");
   updateProgress(100,"Lectura completada","Listo para revisar")
 }
 function renderCandidateSelections(){const f=lastExtraction||{};chips("merchantCandidates",(f.merchantCandidates||[]).map(x=>x.name),$("ocrMerchant").value,v=>{$("ocrMerchant").value=v;renderCandidateSelections()});chips("amountCandidates",(f.amountCandidates||[]).filter((v,i,a)=>a.indexOf(v)===i),Number($("ocrAmount").value),v=>{$("ocrAmount").value=v;renderFiscalCheck();renderCandidateSelections()},v=>money(v))}
-function renderItems(items){$("itemsTitle").textContent=items.length?`${items.length} producto${items.length===1?"":"s"} detectado${items.length===1?"":"s"}`:"Sin productos identificados";$("itemsList").innerHTML=items.length?items.map(x=>`<div class="item-row"><span>${escapeHtml(x.name)}</span><b>${x.amounts?.length?money(x.amounts[x.amounts.length-1]):""}</b></div>`).join(""):'<div class="empty">Puedes escribir el concepto manualmente.</div>'}
+let editingItems=false;
+function renderItems(){
+ const f=lastExtraction||{},items=f.items||[],engine=window.Gasto360DesgloseR816;
+ $("itemsTitle").textContent=items.length?items.length+" artículo"+(items.length===1?"":"s")+" identificado"+(items.length===1?"":"s"):"Sin artículos identificados";
+ $("editItemsBtn").textContent=editingItems?"Terminar edición":"Editar desglose";
+ $("addItemBtn").hidden=!editingItems;
+ const n=v=>v===null||v===undefined?"":String(v);
+ const row=(it,i)=>{
+   const notices=it.reviewReasons||[],provisional=it.gross===null||notices.length>0;
+   const checked=it.gross!==null&&!provisional;
+   const name=escapeHtml(it.name),unit=it.unit==='kg'&&it.weightKg!==null?
+    (it.weightKg+" kg × "+(it.unitPrice??'?')+" €/kg"):(it.quantity>1?(it.quantity+" ud × "+(it.unitPrice??'?')+" €"):"");
+   const evidence=(it.evidence||[]).map(x=>escapeHtml(x.label+": "+x.raw)).join("<br>");
+   if(!editingItems)return '<article class="purchase-item'+(provisional?' needs-review':'')+'">'+
+    '<div class="purchase-item-head"><b>'+name+'</b><span class="status-tag '+(checked?'confirmed':'needs')+'">'+(checked?'Extraído':'Revisar')+'</span></div>'+
+    '<div class="purchase-item-money"><span>'+(unit||'1 ud')+'</span><span>Bruto: <b>'+(it.gross!==null?money(it.gross):'Pendiente')+'</b></span></div>'+
+    (it.discount>0?'<div class="item-discount">Descuento recuperado: −'+money(it.discount)+' · comprobar</div>':'')+
+    (it.gross===null&&it.proposal!==undefined?'<div class="item-proposal"><div>Posible precio según otra lectura: <b>'+money(it.proposal)+'</b> (NO confirmado)</div><button type="button" class="light-btn accept-proposal" data-index="'+i+'">Confirmar precio tras revisarlo</button></div>':'')+
+    '<div class="item-net">Neto: <strong>'+(it.net!==null?money(it.net):'Por confirmar')+'</strong></div>'+
+    (notices.length?'<p class="item-warning">⚠ '+escapeHtml(notices.join(' '))+'</p>':'')+
+    '<details><summary>Procedencia de la lectura</summary><div class="item-evidence">'+evidence+
+    (it.candidates?.length?'<br><strong>Alternativas detectadas:</strong><br>'+it.candidates.map(x=>escapeHtml(x.source)+': '+money(x.value)).join('<br>'):'')+
+    '</div></details></article>';
+   const input=(key,value,type='text')=>'<label>'+({name:'Producto',quantity:'Cantidad',gross:'Importe bruto €',discount:'Descuento €'}[key])+
+     '<input data-index="'+i+'" data-field="'+key+'" type="'+type+'" '+(type==='number'?'min="0" step="0.01" inputmode="decimal" ':'')+
+     'value="'+escapeHtml(n(value))+'"></label>';
+   return '<article class="purchase-item editing"><div class="purchase-item-edit">'+
+    input('name',it.name)+input('quantity',it.quantity,'number')+input('gross',it.gross,'number')+input('discount',it.discount,'number')+
+    '</div><div class="item-net">Neto: '+(it.net!==null?money(it.net):'Sin precio')+'</div>'+
+    '<button type="button" class="light-btn delete-item" data-index="'+i+'">Quitar artículo</button>'+
+    (it.reviewReasons?.length?'<p class="item-warning">'+escapeHtml(it.reviewReasons.join(' '))+'</p>':'')+'</article>';
+ };
+ $("itemsList").innerHTML=items.length?items.map(row).join(""):'<div class="empty">No hay productos confirmados. Puedes añadirlos manualmente.</div>';
+ updateReconciliation();
+ renderVatDetails();
+}
+function updateReconciliation(){
+ const f=lastExtraction||{},api=window.Gasto360DesgloseR816,items=f.items||[];
+ const paid=Number($("ocrAmount").value||0),sum=api.summary(items,paid);
+ const disputed=items.filter(x=>x.needsReview&&!x.confirmedByUser);
+ if(disputed.length&&sum.status==='cuadrado')sum.status='pendiente';
+ if(f.desglose)f.desglose.reconciliation=sum;
+ const box=$("purchaseReconciliation");
+ const status=sum.status==='cuadrado'?'✓ CUADRADO':'⚠ PENDIENTE DE REVISIÓN';
+ box.className="purchase-reconciliation"+(sum.status==='cuadrado'?' ok':' pending');
+ box.innerHTML='<b>'+status+'</b><div class="purchase-kpis">'+
+  '<span>Bruto reconocido<br><strong>'+money(sum.grossKnown)+'</strong></span>'+
+  '<span>Descuentos<br><strong>−'+money(sum.discounts)+'</strong></span>'+
+  '<span>Neto reconocido<br><strong>'+money(sum.netKnown)+'</strong></span>'+
+  '<span>Total del ticket<br><strong>'+(sum.total!==null?money(sum.total):'Pendiente')+'</strong></span></div>'+
+  (sum.difference!==null&&sum.status!=='cuadrado'?'<p>'+
+    (Math.abs(sum.difference)<=.025&&disputed.length?
+      '<strong>La suma coincide, pero quedan '+disputed.length+' artículo(s) con lecturas contradictorias por revisar.</strong>':
+      'Diferencia por comprobar: <strong>'+money(sum.difference)+'</strong>. '+
+      (sum.unknown?'Hay '+sum.unknown+' artículo(s) con importe no legible.':'Revisa los importes y descuentos.'))+
+      '</p>':'')+
+  (f.desglose?.amountAudit?.corrected?'<p class="total-reconciled">✓ Total corregido mediante productos + IVA + pago: <b>'+money(f.desglose.amountAudit.amount)+'</b>. El OCR principal sugería '+money(f.desglose.amountAudit.ocrOriginal)+'. <b>Revisa el ticket.</b></p>':'')+
+  (sum.suggestion?'<p class="unconfirmed-amount">El precio de '+escapeHtml(items.find(x=>x.id===sum.suggestion.itemId)?.name||'un artículo')+
+    ' podría ser '+money(sum.suggestion.amount)+' por diferencia matemática. <b>No está leído del ticket.</b></p>'+
+    '<button class="light-btn" type="button" id="confirmDifference">Confirmar manualmente '+money(sum.suggestion.amount)+'</button>':'');
+ const note=$("itemsReviewNote");
+ if(f.desglose?.essential?.fiscal?.status==='validado' && f.desglose?.essential?.amount!==null && sum.status!=='cuadrado'){
+   note.textContent='Los datos esenciales están verificados: el desglose de productos es opcional y puede corregirse después. No confundir la revisión de artículos con la del TOTAL e IVA.';
+ }else
+ note.textContent=f.desglose?.amountAudit?.verified?
+  "Los productos al peso usan kg × €/kg y se comparan con la cifra impresa en varias lecturas. Las discrepancias se marcan para revisar. Todo queda solo en esta sesión.":
+  "Los descuentos recuperados por suma y orden de lectura son provisionales. Los precios alternativos requieren aceptación manual. Todo queda solo en esta sesión.";
+ const b=$("confirmDifference");if(b)b.onclick=()=>{
+  const suggested=sum.suggestion,idx=items.findIndex(x=>x.id===suggested.itemId);
+  if(idx<0)return;
+  if(!window.confirm("¿Has comprobado en el ticket que el importe de "+items[idx].name+" es "+money(suggested.amount)+"? No procede directamente del OCR."))return;
+  const p=items[idx];p.gross=suggested.amount;p.net=api.round(p.gross-p.discount);
+  p.manualReview=true;p.reviewReasons=["Importe confirmado manualmente; no leído por OCR."];
+  renderItems();
+ };
+}
+function renderVatDetails(){
+ const data=lastExtraction?.desglose?.fiscal,host=$("taxBreakdownRows"),flag=$("taxBreakdownState"),warn=$("taxBreakdownWarning");
+ if(!data){host.textContent="Sin desglose fiscal leído.";flag.textContent="Pendiente";warn.textContent="";return}
+ const currentTotal=Number($("ocrAmount").value||0);
+ const currentTax=$("ocrTax").value.trim()===""?null:Number($("ocrTax").value);
+ const liveValid=data.status==="validado"&&currentTax!==null&&
+  Math.abs(currentTotal-data.gross)<=.025&&Math.abs(currentTax-data.tax)<=.025;
+ flag.textContent=liveValid?"Cuadrado con el total":data.status==="validado"?"Cifras modificadas: revisar":"No verificado";
+ flag.className="breakdown-status "+(liveValid?'status-ok':'status-warn');
+ const rows=(data.rows||[]).map(x=>'<tr><td>'+x.rate+' %</td><td>'+money(x.base)+'</td><td>'+money(x.vat)+'</td><td>'+money(x.gross)+'</td><td>'+(x.review?'Comprobar':'OCR')+'</td></tr>').join('');
+ host.innerHTML=rows?'<div class="table-scroll"><table><thead><tr><th>Tipo</th><th>Base</th><th>IVA</th><th>Total</th><th>Origen</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+ (data.status==='validado'?'<p><strong>Base: '+money(data.base)+' · IVA: '+money(data.tax)+' · Total: '+money(data.gross)+'</strong></p>':''):'Sin tabla de IVA fiable.';
+ warn.textContent=(data.warnings||[]).join(' ')+(data.status==='validado'&&!liveValid?' El total o el IVA editado ya no coincide con la tabla del ticket.':'');
+}
 function escapeHtml(s){return String(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
 function renderFiscalCheck(){const f=lastExtraction||{},total=Number($("ocrAmount").value||0),tax=Number($("ocrTax").value||0),base=f.base;const box=$("fiscalCheck");if(base!==null&&base!==undefined&&tax>0&&total>0){const diff=Math.abs(base+tax-total);box.hidden=false;box.className="fiscal-check"+(diff<=.03?"":" warn");box.textContent=diff<=.03?`✓ Cuadre fiscal: ${money(base)} base + ${money(tax)} IVA = ${money(total)}`:`⚠ Revisa importes: base ${money(base)} + IVA ${money(tax)} no coincide con total ${money(total)}`}else box.hidden=true}
-$("ocrAmount").oninput=renderFiscalCheck;$("ocrTax").oninput=renderFiscalCheck;
+$("ocrAmount").oninput=()=>{renderFiscalCheck();updateReconciliation();renderVatDetails()};
+ $("ocrTax").oninput=()=>{renderFiscalCheck();renderVatDetails()};
 $("repeatOcrBtn").onclick=async()=>{setStep(3);await runOCR();renderFinalReview();setStep(4)};
-$("editItemsBtn").onclick=()=>{const txt=(lastExtraction?.items||[]).map(x=>x.name).join(" + ");$("ocrConcept").value=txt;$("ocrConcept").focus()};
+$("editItemsBtn").onclick=()=>{editingItems=!editingItems;renderItems()};
+$("addItemBtn").onclick=()=>{
+ if(!lastExtraction)return;
+ lastExtraction.items.push({id:"manual-"+Date.now(),name:"Nuevo artículo",gross:null,discount:0,net:null,quantity:1,unit:"ud",unitPrice:null,weightKg:null,
+  vatCode:null,vatRate:null,evidence:[{label:"manual",raw:"Añadido por el usuario"}],discountEvidence:[],reviewReasons:["Introducido manualmente."],manualReview:true});
+ editingItems=true;renderItems();
+};
+$("itemsList").addEventListener("change",e=>{
+ const input=e.target.closest("input[data-index][data-field]");if(!input||!lastExtraction)return;
+ const i=Number(input.dataset.index),field=input.dataset.field,prev=lastExtraction.items[i];
+ if(!prev)return;
+ const candidate={...prev,[field]:input.value};
+ try{
+  const normalized=window.Gasto360DesgloseR816.normalizeEditable(candidate);
+  normalized.confirmedByUser=true;normalized.needsReview=false;
+  lastExtraction.items[i]=normalized;renderItems();
+ }catch(err){window.gasto360Cloud.toast("Revisa el artículo: "+err.message,"warn",6000);renderItems()}
+});
+$("itemsList").addEventListener("click",e=>{
+ if(!lastExtraction)return;
+ const accept=e.target.closest("button.accept-proposal");
+ if(accept){
+  const i=Number(accept.dataset.index),item=lastExtraction.items[i];
+  if(!item||!Number.isFinite(item.proposal))return;
+  const proposal=Number(item.proposal);
+  if(!window.confirm("¿Has comprobado en la imagen ORIGINAL que "+item.name+" cuesta "+money(proposal)+"? Este valor viene de una lectura alternativa y puede ser incorrecto."))return;
+  item.gross=proposal;item.net=window.Gasto360DesgloseR816.round(proposal-Number(item.discount||0));
+  item.manualReview=true;item.confirmedByUser=true;item.needsReview=false;
+  item.reviewReasons=["Precio confirmado manualmente por usuario; propuesta OCR no validada automáticamente."];
+  renderItems();return;
+ }
+ const b=e.target.closest("button.delete-item");if(!b)return;
+ const i=Number(b.dataset.index);if(!Number.isInteger(i))return;
+ lastExtraction.items.splice(i,1);renderItems();
+});
 
 function buildPayload(){
-  const fields={merchant:$("ocrMerchant").value.trim(),date:$("ocrDate").value,amount:Number($("ocrAmount").value),tax:Number($("ocrTax").value||0),concept:$("ocrConcept").value.trim(),category:$("ocrCategory").value,payment:$("ocrPayment").value};
-  const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.4.2",cropConfidence}};
+  const items=(lastExtraction?.items||[]).map(x=>({...x}));
+   const desglose=lastExtraction?.desglose||null;
+   if(desglose){
+    desglose.reconciliation=window.Gasto360DesgloseR816.summary(items,Number($("ocrAmount").value||0));
+    if(items.some(x=>x.needsReview&&!x.confirmedByUser))desglose.reconciliation.status='pendiente';
+   }
+   const fields={merchant:$("ocrMerchant").value.trim(),date:$("ocrDate").value,amount:Number($("ocrAmount").value),
+    tax:$("ocrTax").value.trim()===""?null:Number($("ocrTax").value),
+    concept:$("ocrConcept").value.trim(),category:$("ocrCategory").value,payment:$("ocrPayment").value,
+    taxId:$("ocrTaxId").value.trim(),invoiceNo:$("ocrInvoiceNo").value.trim(),
+    items,desgloseEstado:desglose?.reconciliation?.status||"pendiente",
+    ivaEstado:desglose?.fiscal?.status==="validado"&&
+      Math.abs(desglose.fiscal.gross-Number($("ocrAmount").value||0))<=.025&&
+      Math.abs(desglose.fiscal.tax-Number($("ocrTax").value||0))<=.025?"validado":"pendiente"};
+  const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.18",ocrDiagnostics,cropConfidence}};
   return {fields,scan,submissionId:scanSubmissionId}
 }
 async function doSave(force=false){
-  if(saving)return;saving=true;$("saveScanBtn").disabled=true;$("saveScanBtn").textContent="Guardando gasto y ticket...";
+  if(saving)return;const checked=buildPayload().fields;if(!checked.merchant||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(checked.date)||!Number.isFinite(checked.amount)||checked.amount<=0){window.gasto360Cloud.toast("Revisa comercio, fecha e importe. No se guardarán valores supuestos.","warn",7000);return}saving=true;$("saveScanBtn").disabled=true;$("saveScanBtn").textContent="Guardando gasto y ticket...";
   try{
     const r=await window.gasto360Cloud.saveScannedExpense(buildPayload(),force);
     if(r.duplicate){$("scanDuplicateWarning").hidden=false;$("scanDuplicateExisting").innerHTML=r.rows.map(x=>`<div><b>${escapeHtml(x.merchant)}</b> · ${escapeHtml(x.date)} · ${money(x.amount)}</div>`).join("");$("scanDuplicateWarning").scrollIntoView({behavior:"smooth",block:"center"});return}
     if(!r.ok)throw new Error(r.error||"No se pudo guardar");
-    window.gasto360Cloud.toast(r.pending?`Gasto guardado. ${r.pending} archivo(s) pendiente(s) de subida.`:"Gasto y ticket guardados correctamente.",r.pending?"warn":"ok",6000);
+    window.gasto360Cloud.toast(r.pending?`Gasto guardado; ${r.pending} documento(s) pendientes de subir.`:"Gasto y ticket guardados en tu cuenta.",r.pending?"warn":"ok",6000);
     reset();window.gasto360Cloud.goHome()
   }catch(e){window.gasto360Cloud.toast("No se pudo guardar: "+e.message,"error",6000)}
   finally{saving=false;$("saveScanBtn").disabled=false;$("saveScanBtn").textContent="Guardar gasto + ticket"}
@@ -342,6 +630,15 @@ $("saveScanBtn").onclick=()=>doSave(false);$("forceScanSave").onclick=()=>{ $("s
 ["scannerExit","homeBtn","docsBtn","logout"].forEach(id=>{const el=$(id);if(el)el.addEventListener("click",()=>stopCamera())});
 window.addEventListener("pagehide",()=>stopCamera());
 window.addEventListener("beforeunload",()=>stopCamera());
+$("downloadOcrDiagnostic").onclick=()=>{
+  if(!ocrDiagnostics){window.gasto360Cloud.toast("Todavía no se ha ejecutado el reconocimiento.","warn");return}
+  const report={version:"R8.18",createdAt:new Date().toISOString(),diagnostics:ocrDiagnostics,fields:lastExtraction,
+    note:"Informe local: contiene texto reconocido del ticket. Revisa sus datos personales antes de compartirlo."};
+  const blob=new Blob([JSON.stringify(report,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob),link=document.createElement("a");
+  link.href=url;link.download="diagnostico_ocr_gasto360_r818_"+new Date().toISOString().slice(0,10)+".json";
+  document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);
+};
 window.gasto360Scanner={reset,stopCamera,startCamera};
 reset();
 })();
