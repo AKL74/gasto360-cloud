@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-/* Gasto360 R8.7: OCR local multinivel. Sin APIs ni envíos de tickets. */
+/* Gasto360 R8.8: OCR local multinivel. Sin APIs ni envíos de tickets. */
 const clamp=(n,a,b)=>Math.max(a,Math.min(n,b));
 function makeCanvas(image,mode='original',section='full'){
   const x=0,y=section==='cabecera'?0:section==='pie'?Math.floor(image.height*.45):0;
@@ -39,20 +39,26 @@ function combine(attempts){
  for(const key of choices){
   const options=attempts.filter(r=>{
     const v=r.fields[key];return v!==undefined&&v!==null&&v!==''&&(key!=='payment'||v!=='Otro')&&(key!=='tax'||Number(v)>0);
-  }).map(r=>({value:r.fields[key],label:r.label,confidence:r.fields.confidence?.[key]||0,quality:r.confidence}));
+  }).map(r=>({value:r.fields[key],label:r.label,confidence:r.fields.confidence?.[key]||0,quality:r.confidence,source:r.fields.totalSource||'',base:r.fields.base??null,fiscal:r.fields.fiscalValidated||false}));
   if(!options.length)continue;
   const counts=new Map();
   for(const x of options){const k=String(x.value).toUpperCase().trim();counts.set(k,(counts.get(k)||0)+1)}
   options.sort((a,b)=>{
    const same=(v)=>counts.get(String(v.value).toUpperCase().trim())||0;
    const region=(x)=>((key==='merchant'||key==='date')&&x.label==='cabecera'?7:key==='amount'&&x.label==='pie'?7:0);
-   return (same(b)*18+b.confidence*.55+b.quality*.24+region(b))-(same(a)*18+a.confidence*.55+a.quality*.24+region(a));
+   const evid=x=>key==='amount'?(/importe abonado|total compra|a pagar/.test(x.source)?24:/cuadre fiscal inferido/.test(x.source)?6:0)+(x.fiscal?12:0):0;
+   return (same(b)*10+b.confidence*.9+b.quality*.12+region(b)+evid(b))-(same(a)*10+a.confidence*.9+a.quality*.12+region(a)+evid(a));
   });
   const choice=options[0];result[key]=choice.value;evidence[key]=choice.label;
   if(key==='merchant'){
    const source=attempts.find(r=>r.label===choice.label);
    if(source?.fields.category&&source.fields.category!=='Otros')result.category=source.fields.category;
   }
+  if(key==='tax'){
+   if(choice.base!==null)result.base=choice.base;
+   result.fiscalValidated=choice.fiscal;
+  }
+  if(key==='amount')result.totalSource=choice.source;
   if(result.confidence&&key in result.confidence)result.confidence[key]=Math.min(96,Math.round(choice.confidence));
   const different=new Set(options.map(x=>String(x.value).toUpperCase().trim()));
   if(different.size>1&&(key==='amount'||key==='date'||key==='payment')){
@@ -97,7 +103,7 @@ async function recognize(worker,image,label,psm,onProgress,progressStart,progres
 }
 async function run(image,extract,known,onProgress){
  if(!image?.width||!image?.height)throw Error('El recorte está vacío.');
- const attempts=[],diagnostics={version:'R8.7',width:image.width,height:image.height,passes:[],issues:[]};
+ const attempts=[],diagnostics={version:'R8.8',width:image.width,height:image.height,passes:[],issues:[]};
  let activeProgress=0,worker;
  function progress(v,t,d){activeProgress=Math.max(activeProgress,v);onProgress?.(activeProgress,t,d)}
  try{
