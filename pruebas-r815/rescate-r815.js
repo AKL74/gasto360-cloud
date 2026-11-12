@@ -17,7 +17,7 @@ function values(s){
 const HEAD_IGNORE=/^(?:EUR\b|NIF\b|CIF\b|IVA\b|TVA\b|SUMA\b|TOTAL\b|ENTREGA\b|IMP\.|RECIBO\b|VENTA\b|CAJA\b|CLIENTE\b|DESCUENTO\b|FACTURA\b|GRACIAS\b|TICKET\b|FECHA\b|HORA\b|WWW|HTTP|BASE\b|DESCRIPCI|ART[IÍ]CULOS\b|AVDA\b|CALLE\b|LIDL SUPERMERCADOS\b)/;
 function parseFull(pass){
  const lines=String(pass?.text||'').split(/\r?\n/).map(C);
- let start=lines.findIndex(s=>/^(?:\\?\s*)EUR\b|DESCRIPCION|DESCRIPCIÓN|ARTICULOS|ARTÍCULOS/i.test(s));
+ let start=lines.findIndex(s=>/^\s*(?:\\\s*)?EUR\s*$|^\s*(?:DESCRIPCION|DESCRIPCIÓN|ARTICULOS|ARTÍCULOS)\b/i.test(s));
  if(start<0)start=lines.findIndex(s=>/\bNIF\b|\bCIF\b|\bSUPERMERCADOS\b/i.test(s));
  start=Math.max(0,start+1);
  let end=lines.findIndex((s,i)=>i>start&&/^\s*(?:TOTAL\s+\d|TOTAL\s*$|ENTREGA\b|VENTA CONTADO\b|IMP\.\s*:)/i.test(s));
