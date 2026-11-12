@@ -1,0 +1,29 @@
+name: Gasto360 R8.16 — pruebas de conciliación y productos al peso
+on:
+  pull_request:
+    paths:
+      - "pruebas-r816/**"
+      - ".github/workflows/test-ocr-r816.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validar sintaxis
+        run: |
+          node --check pruebas-r816/scanner.js
+          node --check pruebas-r816/desglose-r814.js
+          node --check pruebas-r816/rescate-r815.js
+          node --check pruebas-r816/interpretacion-r816.js
+          node --check pruebas-r816/ocr-r87.js
+          node --check pruebas-r816/test-app.js
+      - name: Verificar regresión de ticket con promociones
+        run: node pruebas-r816/tests-r815.cjs
+      - name: Verificar productos al peso, importe e IVA
+        run: node pruebas-r816/tests-r816.cjs
