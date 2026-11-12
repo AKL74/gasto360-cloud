@@ -33,6 +33,12 @@ PRUEBA DE ACEPTACIÓN
 8. Puedes guardar un resultado local. Descarga informe JSON de
    la sesión para conservar los productos y las correcciones.
    No se conservan automáticamente al cerrar o recargar.
+9. En "Resultados" puedes abrir el documento y comprobar
+   qué productos/correcciones quedaron guardados.
+10. "Comparar precios de esta sesión" muestra solo coincidencias
+    del mismo nombre normalizado y del mismo formato (kg/ud).
+    Compara el precio NETO unitario, afectado por promociones.
+    NO es un histórico permanente y no usa Supabase.
 
 CÓMO SE VERIFICA
 - Bruto productos - descuentos = neto conocido.
