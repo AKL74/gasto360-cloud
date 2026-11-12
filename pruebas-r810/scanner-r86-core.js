@@ -48,7 +48,7 @@ function parseDate(text){
  return found[0]?.date||'';
 }
 function merchants(lines,known=[]){
- const head=norm(lines.slice(0,22).join(' ')),all=norm(lines.join(' ')),out=[];
+ const head=norm(lines.slice(0,22).filter(l=>!/(PROMO|PLUS|DESCUENTO|OFERTA|AHORRO|VENTA CONTADO|TOTAL OFERTA|ENTREGA)/.test(norm(l))).join(' ')),all=norm(lines.join(' ')),out=[];
  for(const [re,name,cat] of RULES)if(re.test(head))out.push({name,cat,score:98,verified:true});
  for(const km of known){
   const nk=norm(km);if(nk.length>=5&&head.includes(nk))out.push({name:km,cat:null,score:93,verified:true});
