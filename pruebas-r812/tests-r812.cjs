@@ -7,7 +7,7 @@ const scanner=fs.readFileSync(path.join(dir,'scanner.js'),'utf8'),
  html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
 assert.match(scanner,/Gasto360OCRR812\.run\(dst/);
 assert.match(engineSource,/window\.Gasto360OCRR812\s*=/);
-assert.match(html,/<script src="\.\/ocr-r87\.js\?v=8\.11"><\/script>[\s\S]*<script src="\.\/scanner\.js\?v=8\.11"><\/script>/);
+assert.match(html,/<script src="\.\/ocr-r87\.js\?v=8\.12"><\/script>[\s\S]*<script src="\.\/scanner\.js\?v=8\.12"><\/script>/);
 assert.match(scanner,/cv\.INTER_CUBIC/,'restaurada interpolación de imagen de R8.7');
 assert.match(scanner,/a=cv\.imread\(src\)/,'restaurada corrección de perspectiva que funcionó');
 assert.match(engineSource,/Math\.min\(3\.2,4000\/Math\.max\(w,h\)/,'restaurar resolución OCR de R8.7');
