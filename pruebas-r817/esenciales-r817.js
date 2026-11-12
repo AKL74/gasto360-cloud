@@ -36,9 +36,19 @@ function interpret(passes,fields){
          break;
        }
      }
+     // Si el OCR deteriora la fila 21 %, reconstruir la cuota únicamente
+     // cuando aparecen por separado tipo y resumen fiscal BASE + CUOTA.
+     if(!taxRows.length&&totalBase!==null&&totalTax!==null){
+       const rawRate=lines.slice(i+1,Math.min(lines.length,i+7))
+         .map(x=>fmt(x).match(/^\s*(4|10|21)\s*%/)).filter(Boolean).map(x=>Number(x[1]));
+       if(rawRate.length===1&&eq(R(totalBase*rawRate[0]/100),totalTax))
+         taxRows.push({rate:rawRate[0],base:totalBase,vat:totalTax,
+           gross:R(totalBase+totalTax),source:p.label,raw:'Resumen fiscal + tipo '+rawRate[0]+'%',review:true});
+     }
      const base=R(taxRows.reduce((s,x)=>s+x.base,0)),tax=R(taxRows.reduce((s,x)=>s+x.vat,0));
      if(taxRows.length&&totalBase!==null&&totalTax!==null&&eq(base,totalBase)&&eq(tax,totalTax))
-       rates.push({rows:taxRows,base,tax,gross:R(base+tax),source:p.label,quality:taxRows.length*2+(p.label==='original'?1:0)});
+       rates.push({rows:taxRows,base,tax,gross:R(base+tax),source:p.label,
+         quality:taxRows.length*2+(p.label==='original'?1:0)});
    }
    // artículos unitarios solo para respaldo adicional, nunca reemplazan al pago.
    if(/^DESCRIPCION\b/.test(t)){
