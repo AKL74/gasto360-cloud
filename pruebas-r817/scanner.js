@@ -404,6 +404,7 @@ if(analysis?.amountAudit?.verified && analysis.items.length>3 &&
   r.fields.concept='Compra en '+(r.fields.merchant||'comercio')+' ('+analysis.items.length+' artículos)';
   r.fields.confidence.concept=85;
 }
+  analysis.version='R8.17';
   r.fields.items=analysis.items;
   r.fields.desglose=analysis;
   // Una cifra identificada y cuadrada como descuento no debe sugerirse como TOTAL.
@@ -441,6 +442,16 @@ function renderFinalReview(){
   setField("fieldMerchant",f.confidence?.merchant||0);setField("fieldDate",f.confidence?.date||0);setField("fieldAmount",f.confidence?.amount||0);setField("fieldTax",f.confidence?.tax||0);setField("fieldConcept",f.confidence?.concept||0);
   chips("merchantCandidates",(f.merchantCandidates||[]).map(x=>x.name),f.merchant,v=>{$("ocrMerchant").value=v;renderCandidateSelections()} );
   chips("amountCandidates",(f.amountCandidates||[]).filter((v,i,a)=>a.indexOf(v)===i),f.amount,v=>{$("ocrAmount").value=v;renderFiscalCheck();renderCandidateSelections()},v=>money(v));
+  const e=f.desglose?.essential||{},fisc=e.fiscal||{};
+  const val=(value,ok)=>'<strong>'+(ok?escapeHtml(String(value)):'Por confirmar')+'</strong>';
+  const card=(label,value,ok,details='')=>'<div class="essential-cell '+(ok?'verified':'review')+'"><span>'+label+'</span>'+val(value,ok)+(details?'<small>'+escapeHtml(details)+'</small>':'')+'</div>';
+  $("essentialSummary").innerHTML='<h3>Datos prioritarios del ticket</h3><p>Se verifican antes de desglosar los artículos.</p><div class="essential-grid">'+
+    card('Empresa',f.merchant,!!f.merchant && (f.confidence?.merchant||0)>=75)+
+    card('Fecha',f.date,!!f.date && (f.confidence?.date||0)>=75)+
+    card('TOTAL',f.amount===null?'':money(f.amount),f.amount!==null && (f.confidence?.amount||0)>=80,e.amountReason||'')+
+    card('IVA',f.tax!==null?money(f.tax):'',f.fiscalValidated===true,'')+
+    card('Forma de pago',f.payment,!!f.payment&&f.payment!=='Otro')+
+    '</div>';
   editingItems=false;renderItems();renderFiscalCheck();$("ocrRawText").textContent=ocrText;
   const d=ocrDiagnostics||{},attempts=d.passes||[],diag=$("ocrDiagnosticSummary");
   if(diag){
