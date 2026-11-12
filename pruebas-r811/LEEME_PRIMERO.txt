@@ -1,0 +1,43 @@
+GASTO360 R8.11 — RECUPERACIÓN DEL RECONOCIMIENTO
+================================================
+MODO PRUEBAS, SIN MODIFICAR GASTO360, HUB NI SUPABASE.
+
+Esta versión RESTAURA la corrección de perspectiva y el OCR
+que en R8.7 habían reconocido más de 1600 caracteres del ticket.
+Solo cambia la interpretación fiscal y el rechazo de datos falsos.
+
+MÓVIL:
+https://akl74.github.io/gasto360-cloud/pruebas-r811/?v=811
+
+WINDOWS:
+1. Descomprimir el ZIP de la rama restaurar-captura-r811-20261112.
+2. Abrir pruebas-r811.
+3. Ejecutar INICIAR_GASTO360_R811_PRUEBAS.bat.
+4. Se abre http://127.0.0.1:18911/.
+Para detener el servidor, cerrar su ventana.
+
+INSTRUCCIONES DE COMPARACIÓN
+- PRIMERO: seleccionar EXACTAMENTE la misma foto de Lidl
+  que dio una lectura útil en R8.7, desde la galería.
+- Verificar que los cuatro puntos marcan los bordes del ticket.
+  Si abarcan toda la fotografía, ajustarlos. El programa
+  ahora bloquea un encuadre gigantesco sin corregir.
+- Pulsar CONTINUAR y revisar resultado.
+- Descargar diagnóstico OCR si no reconoce el ticket.
+- SEGUNDO: hacer foto nueva, más cerca y con buena luz,
+  para diferenciar resolución óptica de procesamiento.
+
+IMPORTE Y PAGO ESPERADOS EN EL TICKET DE PRUEBA:
+Comercio: LIDL.
+Fecha: 04/11/2026.
+Importe abonado: 42,48 euros.
+Venta con indicios de pago por tarjeta.
+Descuento/promoción de 6,93 euros: NO es el total.
+El IVA solo se muestra cuando puede leerse con suficiente evidencia.
+
+MUY IMPORTANTE:
+Los diagnósticos contienen el texto del ticket y pueden
+incluir datos personales. Revísalos antes de compartirlos.
+Este paquete no se ha probado con los JPG ORIGINALES en un
+navegador Samsung; sus pruebas automáticas simulan el OCR.
+El usuario debe verificar el resultado en su teléfono.
