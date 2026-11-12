@@ -1,0 +1,26 @@
+name: Gasto360 R8.15 — comprobar rescate OCR
+on:
+  pull_request:
+    paths:
+      - "pruebas-r815/**"
+      - ".github/workflows/test-ocr-r815.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validar sintaxis
+        run: |
+          node --check pruebas-r815/scanner.js
+          node --check pruebas-r815/desglose-r814.js
+          node --check pruebas-r815/rescate-r815.js
+          node --check pruebas-r815/ocr-r87.js
+          node --check pruebas-r815/test-app.js
+      - name: Comprobar precios, descuentos, IVA y ausencia de escrituras
+        run: node pruebas-r815/tests-r815.cjs
