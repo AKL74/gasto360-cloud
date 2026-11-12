@@ -1,0 +1,26 @@
+name: Comprobaciones Gasto360 R8.14
+on:
+  pull_request:
+    paths:
+      - "pruebas-r814/**"
+      - ".github/workflows/test-ocr-r814.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Comprobar sintaxis de módulos
+        run: |
+          node --check pruebas-r814/scanner.js
+          node --check pruebas-r814/scanner-r86-core.js
+          node --check pruebas-r814/desglose-r814.js
+          node --check pruebas-r814/ocr-r87.js
+          node --check pruebas-r814/test-app.js
+      - name: Test de desglose, importes e IVA
+        run: node pruebas-r814/tests-r814.cjs
