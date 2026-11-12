@@ -320,8 +320,8 @@ async function recognizeCanvas(c,label,base,span){
 }
 async function runOCR(){
   updateProgress(27,"Reconociendo texto…","Lectura en varias zonas y tratamientos de imagen");
-  if(!window.Gasto360OCRR87)throw new Error("No se cargó el motor OCR R8.7. Recarga la página.");
-  const r=await window.Gasto360OCRR87.run(dst,(raw,conf,known)=>window.Gasto360ScanR86.extract(raw,conf,known),knownMerchants,updateProgress);
+  if(!window.Gasto360OCRR88)throw new Error("No se cargó el motor OCR R8.8. Recarga la página.");
+  const r=await window.Gasto360OCRR88.run(dst,(raw,conf,known)=>window.Gasto360ScanR86.extract(raw,conf,known),knownMerchants,updateProgress);
   ocrText=r.text||"";ocrConfidence=r.confidence;ocrDiagnostics=r.diagnostics;
   lastExtraction=r.fields;lastFields=r.fields;
   await sleep(120);
@@ -359,7 +359,7 @@ $("editItemsBtn").onclick=()=>{const txt=(lastExtraction?.items||[]).map(x=>x.na
 
 function buildPayload(){
   const fields={merchant:$("ocrMerchant").value.trim(),date:$("ocrDate").value,amount:Number($("ocrAmount").value),tax:Number($("ocrTax").value||0),concept:$("ocrConcept").value.trim(),category:$("ocrCategory").value,payment:$("ocrPayment").value};
-  const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.7",ocrDiagnostics,cropConfidence}};
+  const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.8",ocrDiagnostics,cropConfidence}};
   return {fields,scan,submissionId:scanSubmissionId}
 }
 async function doSave(force=false){
@@ -380,7 +380,7 @@ window.addEventListener("pagehide",()=>stopCamera());
 window.addEventListener("beforeunload",()=>stopCamera());
 $("downloadOcrDiagnostic").onclick=()=>{
   if(!ocrDiagnostics){window.gasto360Cloud.toast("Todavía no se ha ejecutado el reconocimiento.","warn");return}
-  const report={version:"R8.7",createdAt:new Date().toISOString(),diagnostics:ocrDiagnostics,fields:lastExtraction,
+  const report={version:"R8.8",createdAt:new Date().toISOString(),diagnostics:ocrDiagnostics,fields:lastExtraction,
     note:"Informe local: contiene texto reconocido del ticket. Revisa sus datos personales antes de compartirlo."};
   const blob=new Blob([JSON.stringify(report,null,2)],{type:"application/json"});
   const url=URL.createObjectURL(blob),link=document.createElement("a");
