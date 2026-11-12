@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-/* Entorno R8.7 completamente local y efímero: jamás escribe en Supabase. */
+/* Entorno R8.11 completamente local y efímero: jamás escribe en Supabase. */
 const $=id=>document.getElementById(id);
 const views=['dashboardView','expenseView','expenseDetailView','scannerView','documentsView','documentDetailView','duplicatesView'];
 let results=[],selected=null,selectedKind='scanner_corrected';
@@ -15,13 +15,13 @@ function download(blob,name){
  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);
 }
 function exportResults(){
- const report={version:'Gasto360 R8.7 TEST',createdAt:new Date().toISOString(),note:'Resultados locales; fotografías no incluidas',cases:results.map(x=>({
+ const report={version:'Gasto360 R8.11 TEST',createdAt:new Date().toISOString(),note:'Resultados locales; fotografías no incluidas',cases:results.map(x=>({
     id:x.id,createdAt:x.createdAt,fields:x.fields,scannerFields:x.metadata,ocrText:x.text,
     ocrConfidence:x.ocrConfidence,originalFilename:x.original?.name||null,
     originalBytes:x.original?.size||0,correctedBytes:x.corrected?.size||0
  }))};
  download(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}),
- 'informe_pruebas_Gasto360_R87_'+new Date().toISOString().slice(0,10)+'.json');
+ 'informe_pruebas_Gasto360_R811_'+new Date().toISOString().slice(0,10)+'.json');
  toast('Informe descargado en el dispositivo; no se ha enviado a ninguna nube.');
 }
 function duplicates(fields){
@@ -77,10 +77,10 @@ $('documentSearch').addEventListener('input',renderResults);
 $('documentsList').addEventListener('click',e=>{const b=e.target.closest('.view-test');if(b)openResult(b.dataset.id)});
 $('documentFileTabs').addEventListener('click',e=>{const b=e.target.closest('button[data-kind]');if(b)showFile(b.dataset.kind)});
 $('backDocuments').addEventListener('click',renderResults);
-$('downloadDocument').addEventListener('click',()=>{if(!selected)return;const blob=selectedKind==='original'?selected.original:selected.corrected;if(blob)download(blob,'gasto360_r87_'+selectedKind+'.jpg')});
+$('downloadDocument').addEventListener('click',()=>{if(!selected)return;const blob=selectedKind==='original'?selected.original:selected.corrected;if(blob)download(blob,'gasto360_r811_'+selectedKind+'.jpg')});
 $('documentExpenseForm').addEventListener('submit',e=>{e.preventDefault();if(!selected)return;Object.assign(selected.fields,{merchant:$('docMerchant').value,date:$('docDate').value,amount:Number($('docAmount').value),tax:Number($('docTax').value),concept:$('docConcept').value,category:$('docCategory').value});toast('Corrección guardada solo en esta pestaña.');renderResults()});
 $('exportAllTests').addEventListener('click',exportResults);
 document.querySelectorAll('.backHomeBtn').forEach(e=>{if(e.id!=='scannerExit')e.addEventListener('click',()=>show('scannerView'))});
 show('scannerView');
-toast('Prueba aislada R8.7: ningún ticket se enviará a Supabase.','ok',6500);
+toast('Prueba aislada R8.11: ningún ticket se enviará a Supabase.','ok',6500);
 })();
