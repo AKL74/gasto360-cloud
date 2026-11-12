@@ -2,7 +2,7 @@
 const $=id=>document.getElementById(id);
 const src=$("srcCanvas"),ov=$("overlayCanvas"),dst=$("dstCanvas"),reviewCanvas=$("reviewCanvas"),sctx=src.getContext("2d"),octx=ov.getContext("2d");
 let file=null,pts=[],drag=-1,correctedBlob=null,ocrText="",ocrConfidence=0,lastFields={},lastExtraction=null,scanSubmissionId=null,saving=false;
-let cropConfidence=0,knownMerchants=[];let mediaStream=null,cameraStarting=false,currentFacing="environment";
+let cropConfidence=0,cropSample=null,knownMerchants=[];let mediaStream=null,cameraStarting=false,currentFacing="environment";
 
 const normalize=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[^A-Z0-9%€.,:/\- ]+/g," ").replace(/\s+/g," ").trim();
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -29,7 +29,7 @@ function angleScore(p){
   return score/4
 }
 function polyArea(p){let a=0;for(let i=0;i<p.length;i++){const j=(i+1)%p.length;a+=p[i].x*p[j].y-p[j].x*p[i].y}return Math.abs(a/2)}
-function scoreQuad(p,w,h){const cov=polyArea(p)/(w*h),orth=angleScore(p),cx=p.reduce((a,x)=>a+x.x,0)/4,cy=p.reduce((a,x)=>a+x.y,0)/4,center=1-Math.min(1,Math.hypot(cx-w/2,cy-h/2)/Math.hypot(w/2,h/2));const covScore=cov<.12?0:cov>.98?.2:Math.min(1,cov/.55);return .52*covScore+.35*orth+.13*center}
+function scoreQuad(p,w,h){return window.Gasto360ScanR86.scoreQuad(sortPts(p),w,h,cropSample)}
 function defaultPts(){const w=src.width,h=src.height,m=Math.max(15,Math.min(w,h)*.045);pts=[{x:m,y:m},{x:w-m,y:m},{x:w-m,y:h-m},{x:m,y:h-m}];cropConfidence=.35;drawOverlay()}
 function drawOverlay(){
   ov.width=src.width;ov.height=src.height;octx.clearRect(0,0,ov.width,ov.height);if(pts.length!==4)return;
@@ -49,23 +49,53 @@ ov.onpointerup=()=>{drag=-1;$("cornerLoupe").hidden=true};
 
 async function autoEdges(){
   if(!(await waitCV(2500))){defaultPts();setCropBanner("No pudimos activar la detección automática. Ajusta los 4 puntos.", "warn");return}
-  let rgba,gray,blur,canny,thr,hierarchy,contours;const candidates=[];
+  let rgba,gray,blur,canny,thr,hierarchy,contours;const candidates=[];cropSample=null;
   try{
-    rgba=cv.imread(src);gray=new cv.Mat();blur=new cv.Mat();canny=new cv.Mat();thr=new cv.Mat();hierarchy=new cv.Mat();contours=new cv.MatVector();
+    const small=document.createElement("canvas"),factor=Math.min(1,1400/Math.max(src.width,src.height));small.width=Math.max(2,Math.round(src.width*factor));small.height=Math.max(2,Math.round(src.height*factor));const dc=small.getContext("2d",{willReadFrequently:true});dc.drawImage(src,0,0,small.width,small.height);cropSample={width:small.width,height:small.height,data:dc.getImageData(0,0,small.width,small.height).data};rgba=cv.imread(small);gray=new cv.Mat();blur=new cv.Mat();canny=new cv.Mat();thr=new cv.Mat();hierarchy=new cv.Mat();contours=new cv.MatVector();
     cv.cvtColor(rgba,gray,cv.COLOR_RGBA2GRAY);cv.equalizeHist(gray,gray);cv.GaussianBlur(gray,blur,new cv.Size(5,5),0);
     for(const mode of ["canny","threshold"]){
       contours.delete();contours=new cv.MatVector();hierarchy.delete();hierarchy=new cv.Mat();
       if(mode==="canny"){cv.Canny(blur,canny,40,140);cv.findContours(canny,contours,hierarchy,cv.RETR_LIST,cv.CHAIN_APPROX_SIMPLE)}
       else{cv.adaptiveThreshold(blur,thr,255,cv.ADAPTIVE_THRESH_GAUSSIAN_C,cv.THRESH_BINARY_INV,31,9);cv.findContours(thr,contours,hierarchy,cv.RETR_LIST,cv.CHAIN_APPROX_SIMPLE)}
       for(let i=0;i<contours.size();i++){
-        const c=contours.get(i),area=Math.abs(cv.contourArea(c));if(area<src.width*src.height*.08){c.delete();continue}
+        const c=contours.get(i),area=Math.abs(cv.contourArea(c));if(area<small.width*small.height*.003){c.delete();continue}
         const ap=new cv.Mat();cv.approxPolyDP(c,ap,.018*cv.arcLength(c,true),true);
-        if(ap.rows===4){const q=[];for(let r=0;r<4;r++)q.push({x:ap.intPtr(r,0)[0],y:ap.intPtr(r,0)[1]});candidates.push({q:sortPts(q),score:scoreQuad(q,src.width,src.height)})}
+        if(ap.rows===4){const q=[];for(let r=0;r<4;r++)q.push({x:ap.intPtr(r,0)[0]*src.width/small.width,y:ap.intPtr(r,0)[1]*src.height/small.height});candidates.push({q:sortPts(q),score:scoreQuad(q,src.width,src.height)})}
         ap.delete();c.delete()
       }
     }
+    // Fallback para papel curvado o bordes poco contrastados:
+    // máscara de papel claro, cierre morfológico y rectángulo envolvente.
+    if(!candidates.some(c=>c.score>=.78)){
+      let paperMask,kernel,paperContours,paperHierarchy;
+      try{
+        paperMask=new cv.Mat(small.height,small.width,cv.CV_8UC1);
+        for(let i=0,j=0;i<cropSample.data.length;i+=4,j++){
+          const r=cropSample.data[i],g=cropSample.data[i+1],b=cropSample.data[i+2];
+          const value=Math.max(r,g,b),minValue=Math.min(r,g,b);
+          const saturation=value?255*(value-minValue)/value:0;
+          paperMask.data[j]=(value>122&&saturation<74)?255:0;
+        }
+        kernel=cv.getStructuringElement(cv.MORPH_RECT,new cv.Size(5,7));
+        cv.morphologyEx(paperMask,paperMask,cv.MORPH_CLOSE,kernel);
+        paperContours=new cv.MatVector();paperHierarchy=new cv.Mat();
+        cv.findContours(paperMask,paperContours,paperHierarchy,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_SIMPLE);
+        for(let i=0;i<paperContours.size();i++){
+          const c=paperContours.get(i),area=Math.abs(cv.contourArea(c));
+          if(area>=small.width*small.height*.003&&area<=small.width*small.height*.75){
+            const r=cv.boundingRect(c),rx=src.width/small.width,ry=src.height/small.height;
+            const q=[{x:r.x*rx,y:r.y*ry},{x:(r.x+r.width)*rx,y:r.y*ry},
+                     {x:(r.x+r.width)*rx,y:(r.y+r.height)*ry},{x:r.x*rx,y:(r.y+r.height)*ry}];
+            const score=scoreQuad(q,src.width,src.height);
+            if(score>=.56)candidates.push({q,score:score-.025});
+          }
+          c.delete();
+        }
+      }catch(e){console.warn("Segmentación de papel no concluyente",e)}
+      finally{[paperMask,kernel,paperHierarchy].forEach(x=>{try{x&&x.delete()}catch{}});try{paperContours&&paperContours.delete()}catch{}}
+    }
     candidates.sort((a,b)=>b.score-a.score);
-    if(candidates.length){pts=candidates[0].q;cropConfidence=candidates[0].score;drawOverlay();setCropBanner(cropConfidence>.78?"Bordes detectados con alta confianza.":"Bordes detectados. Comprueba los 4 puntos.",cropConfidence>.65?"ok":"warn")}
+    if(candidates.length&&candidates[0].score>=.56){pts=candidates[0].q;cropConfidence=candidates[0].score;drawOverlay();setCropBanner(cropConfidence>.78?"Posible ticket aislado. Comprueba los bordes.":"Comprueba que los 4 puntos rodean el ticket y no la carpeta.",cropConfidence>.78?"ok":"warn")}
     else{defaultPts();setCropBanner("No encontramos los 4 bordes con suficiente seguridad. Ajusta los puntos manualmente.","warn")}
   }catch(e){console.error(e);defaultPts();setCropBanner("La detección automática no fue concluyente. Ajusta los 4 puntos.","warn")}
   finally{[rgba,gray,blur,canny,thr,hierarchy].forEach(x=>{try{x&&x.delete()}catch{}});try{contours&&contours.delete()}catch{}}
@@ -74,7 +104,7 @@ function setCropBanner(msg,kind="ok"){$("qualityBanner").hidden=false;$("quality
 
 function imageQuality(){
   if(!window.cv||!cv.Mat)return {blur:null,brightness:null};
-  let a,g,lap;try{a=cv.imread(src);g=new cv.Mat();lap=new cv.Mat();cv.cvtColor(a,g,cv.COLOR_RGBA2GRAY);const mean=cv.mean(g)[0];cv.Laplacian(g,lap,cv.CV_64F);const m=new cv.Mat(),sd=new cv.Mat();cv.meanStdDev(lap,m,sd);const variance=sd.doubleAt(0,0)**2;m.delete();sd.delete();return {blur:variance,brightness:mean}}catch{return {blur:null,brightness:null}}finally{[a,g,lap].forEach(x=>{try{x&&x.delete()}catch{}})}
+  let a,g,lap;try{const qc=document.createElement("canvas"),f=Math.min(1,900/Math.max(src.width,src.height));qc.width=Math.max(2,Math.round(src.width*f));qc.height=Math.max(2,Math.round(src.height*f));qc.getContext("2d").drawImage(src,0,0,qc.width,qc.height);a=cv.imread(qc);g=new cv.Mat();lap=new cv.Mat();cv.cvtColor(a,g,cv.COLOR_RGBA2GRAY);const mean=cv.mean(g)[0];cv.Laplacian(g,lap,cv.CV_64F);const m=new cv.Mat(),sd=new cv.Mat();cv.meanStdDev(lap,m,sd);const variance=sd.doubleAt(0,0)**2;m.delete();sd.delete();return {blur:variance,brightness:mean}}catch{return {blur:null,brightness:null}}finally{[a,g,lap].forEach(x=>{try{x&&x.delete()}catch{}})}
 }
 function clearCaptureState(){
   file=null;pts=[];drag=-1;correctedBlob=null;ocrText="";ocrConfidence=0;lastFields={};lastExtraction=null;
@@ -89,14 +119,14 @@ async function decodeCaptureToSource(f){
     try{bitmap=await createImageBitmap(f,{imageOrientation:"from-image"})}catch(e){console.warn("createImageBitmap fallo",e)}
   }
   if(bitmap){
-    const scale=Math.min(1,1900/Math.max(bitmap.width,bitmap.height));
+    const scale=Math.min(1,3200/Math.max(bitmap.width,bitmap.height));
     src.width=Math.max(2,Math.round(bitmap.width*scale));src.height=Math.max(2,Math.round(bitmap.height*scale));
     sctx.clearRect(0,0,src.width,src.height);sctx.drawImage(bitmap,0,0,src.width,src.height);
     try{bitmap.close()}catch{}
     return;
   }
   const dataUrl=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(r.error||new Error("No se pudo leer la foto"));r.readAsDataURL(f)});
-  await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>{const scale=Math.min(1,1900/Math.max(im.naturalWidth,im.naturalHeight));src.width=Math.max(2,Math.round(im.naturalWidth*scale));src.height=Math.max(2,Math.round(im.naturalHeight*scale));sctx.clearRect(0,0,src.width,src.height);sctx.drawImage(im,0,0,src.width,src.height);resolve()};im.onerror=()=>reject(new Error("Formato de imagen no compatible"));im.src=dataUrl})
+  await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>{const scale=Math.min(1,3200/Math.max(im.naturalWidth,im.naturalHeight));src.width=Math.max(2,Math.round(im.naturalWidth*scale));src.height=Math.max(2,Math.round(im.naturalHeight*scale));sctx.clearRect(0,0,src.width,src.height);sctx.drawImage(im,0,0,src.width,src.height);resolve()};im.onerror=()=>reject(new Error("Formato de imagen no compatible"));im.src=dataUrl})
 }
 
 function stopCamera(){
@@ -173,11 +203,17 @@ async function captureLiveFrame(){
   if(!mediaStream||!w||!h){window.gasto360Cloud.toast("La cámara todavía no está lista.","warn");return}
   $("captureLiveBtn").disabled=true;
   $("cameraStatus").textContent="Capturando ticket...";
-  const c=document.createElement("canvas");c.width=w;c.height=h;
-  const ctx=c.getContext("2d",{alpha:false});
-  ctx.drawImage(video,0,0,w,h);
-  const blob=await new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error("No se pudo crear la fotografía")),"image/jpeg",.96));
-  const captured=new File([blob],`ticket_${new Date().toISOString().replace(/[:.]/g,"-")}.jpg`,{type:"image/jpeg",lastModified:Date.now()});
+  let blob=null;
+  if(window.ImageCapture&&mediaStream.getVideoTracks().length){
+    try{blob=await new ImageCapture(mediaStream.getVideoTracks()[0]).takePhoto()}catch(e){console.warn("Foto de máxima resolución no disponible; usamos fotograma",e)}
+  }
+  if(!blob){
+    const c=document.createElement("canvas");c.width=w;c.height=h;
+    const ctx=c.getContext("2d",{alpha:false});ctx.drawImage(video,0,0,w,h);
+    blob=await new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error("No se pudo crear la fotografía")),"image/jpeg",.96));
+  }
+  const mime=blob.type||"image/jpeg",ext=mime.includes("png")?"png":"jpg";
+  const captured=new File([blob],"ticket_"+new Date().toISOString().replace(/[:.]/g,"-")+"."+ext,{type:mime,lastModified:Date.now()});
   stopCamera();
   $("liveCameraPanel").hidden=true;
   $("captureLauncher").hidden=false;
@@ -224,18 +260,18 @@ $("retakeBtn").onclick=reset;$("autoEdges").onclick=autoEdges;$("acceptCrop").on
 function canvasBlob(c,q=.94){return new Promise(res=>c.toBlob(res,"image/jpeg",q))}
 async function correctPerspective(){
   const p=sortPts(pts),dist=(x,y)=>Math.hypot(x.x-y.x,x.y-y.y),w=Math.max(400,Math.round(Math.max(dist(p[0],p[1]),dist(p[3],p[2])))),h=Math.max(500,Math.round(Math.max(dist(p[0],p[3]),dist(p[1],p[2]))));
-  if(!(await waitCV(2000))){dst.width=src.width;dst.height=src.height;dst.getContext("2d").drawImage(src,0,0);correctedBlob=await canvasBlob(dst);return}
+  if(!(await waitCV(2000))){const x=Math.max(0,Math.floor(Math.min(...p.map(v=>v.x)))),y=Math.max(0,Math.floor(Math.min(...p.map(v=>v.y)))),ww=Math.min(src.width-x,Math.ceil(Math.max(...p.map(v=>v.x))-x)),hh=Math.min(src.height-y,Math.ceil(Math.max(...p.map(v=>v.y))-y));dst.width=Math.max(1,ww);dst.height=Math.max(1,hh);dst.getContext("2d").drawImage(src,x,y,ww,hh,0,0,dst.width,dst.height);correctedBlob=await canvasBlob(dst);return}
   let a,sp,dp,M,out;try{a=cv.imread(src);sp=cv.matFromArray(4,1,cv.CV_32FC2,[p[0].x,p[0].y,p[1].x,p[1].y,p[2].x,p[2].y,p[3].x,p[3].y]);dp=cv.matFromArray(4,1,cv.CV_32FC2,[0,0,w-1,0,w-1,h-1,0,h-1]);M=cv.getPerspectiveTransform(sp,dp);out=new cv.Mat();cv.warpPerspective(a,out,M,new cv.Size(w,h),cv.INTER_CUBIC,cv.BORDER_REPLICATE,new cv.Scalar());dst.width=w;dst.height=h;cv.imshow(dst,out)}finally{[a,sp,dp,M,out].forEach(x=>{try{x&&x.delete()}catch{}})}
   correctedBlob=await canvasBlob(dst)
 }
 function updateProgress(p,title,detail){$("ocrProgressBar").style.width=`${clamp(p,0,100)}%`;$("processingTitle").textContent=title;$("processingDetail").textContent=detail}
 async function processScan(){
   setStep(3);updateProgress(8,"Corrigiendo perspectiva...","Alineando el documento");
-  try{await correctPerspective();updateProgress(25,"Mejorando legibilidad...","Contraste, escala y limpieza");knownMerchants=await window.gasto360Cloud.getKnownMerchants();await runOCR();renderFinalReview();setStep(4)}catch(e){console.error(e);window.gasto360Cloud.toast("No se pudo completar el análisis. Puedes repetir la foto.","error",6000);setStep(2)}
+  try{await correctPerspective();updateProgress(25,"Mejorando legibilidad...","Contraste, escala y limpieza");try{knownMerchants=await window.gasto360Cloud.getKnownMerchants()}catch(e){console.warn("Sin comercios previos",e);knownMerchants=[]}await runOCR();renderFinalReview();setStep(4)}catch(e){console.error(e);window.gasto360Cloud.toast("No se pudo completar el análisis. Puedes repetir la foto.","error",6000);setStep(2)}
 }
 
 function makeOcrCanvas(mode="gray"){
-  const c=document.createElement("canvas"),ctx=c.getContext("2d"),scale=Math.min(1.7,2200/Math.max(dst.width,dst.height));c.width=Math.round(dst.width*scale);c.height=Math.round(dst.height*scale);ctx.drawImage(dst,0,0,c.width,c.height);
+  const c=document.createElement("canvas"),ctx=c.getContext("2d"),scale=Math.min(3.2,3200/Math.max(dst.width,dst.height),Math.max(1,1100/Math.max(1,dst.width)));c.width=Math.round(dst.width*scale);c.height=Math.round(dst.height*scale);ctx.drawImage(dst,0,0,c.width,c.height);
   const im=ctx.getImageData(0,0,c.width,c.height),a=im.data,gray=new Uint8Array(c.width*c.height);let lo=255,hi=0;for(let i=0,j=0;i<a.length;i+=4,j++){const g=Math.round(.299*a[i]+.587*a[i+1]+.114*a[i+2]);gray[j]=g;lo=Math.min(lo,g);hi=Math.max(hi,g)}
   const span=Math.max(35,hi-lo);for(let i=0,j=0;i<a.length;i+=4,j++){let g=(gray[j]-lo)*255/span;g=clamp((g-128)*1.35+128,0,255);if(mode==="binary")g=g>158?255:0;a[i]=a[i+1]=a[i+2]=g;a[i+3]=255}ctx.putImageData(im,0,0);return c
 }
@@ -275,13 +311,7 @@ function detectTotals(lines){
   return {total:best?.value??"",tax:Number(tax.toFixed(2)),base:base===null?null:Number(base.toFixed(2)),candidates:cand.map(x=>x.value)}
 }
 function paymentFrom(text){const u=normalize(text);if(/EFECTIVO|ENTREGA EFECTIVO/.test(u))return"Efectivo";if(/VISA|MASTERCARD|TARJETA|CARD/.test(u))return"Tarjeta";if(/BIZUM/.test(u))return"Bizum";return"Otro"}
-function extractReceipt(text,baseConf){
-  const lines=text.split(/\r?\n/).map(cleanLine).filter(x=>x.length>1),mc=merchantCandidates(lines,text),tot=detectTotals(lines),items=extractItems(lines),date=parseDate(text),taxId=detectTaxId(text),invoiceNo=detectInvoice(text);
-  const merchant=mc[0]?.name||"",knownCat=mc[0]?.cat,concept=items.length?items.slice(0,3).map(x=>x.name).join(" + "):(merchant?`Compra en ${merchant}`:""),category=knownCat||inferCategory(`${merchant} ${concept}`),payment=paymentFrom(text);
-  const conf={merchant:merchant?(mc[0]?.score>=95?98:Math.min(90,mc[0]?.score||70)):20,date:date?96:20,amount:tot.total!==""?98:20,tax:tot.tax>0?94:35,concept:items.length?92:(merchant?58:25)};
-  const critical=[conf.merchant,conf.date,conf.amount,conf.concept],overall=Math.round((Number(baseConf||0)+critical.reduce((a,b)=>a+b,0))/5);
-  return {merchant,date,amount:tot.total,tax:tot.tax,base:tot.base,concept,category,payment,taxId,invoiceNo,items,merchantCandidates:mc,amountCandidates:tot.candidates,confidence:conf,overall,lines}
-}
+function extractReceipt(text,baseConf){return window.Gasto360ScanR86.extract(text,baseConf,knownMerchants)}
 function extractionScore(f){return (f.merchant?30:0)+(f.date?20:0)+(f.amount!==""?30:0)+(f.tax>0?8:0)+(f.items?.length?15:0)+(f.taxId?5:0)+(f.invoiceNo?5:0)+f.overall/10}
 async function recognizeCanvas(c,label,base,span){
   const blob=await canvasBlob(c,.95);let last=0;
@@ -303,14 +333,14 @@ function chips(id,values,selected,onClick,fmt=x=>String(x)){
   const host=$(id);host.innerHTML="";for(const v of values.slice(0,5)){const b=document.createElement("button");b.type="button";b.className="candidate-chip"+(String(v)===String(selected)?" selected":"");b.textContent=fmt(v);b.onclick=()=>onClick(v);host.appendChild(b)}
 }
 function renderFinalReview(){
-  const f=lastExtraction||{};$("ocrMerchant").value=f.merchant||"";$("ocrDate").value=f.date||new Date().toISOString().slice(0,10);$("ocrAmount").value=f.amount??"";$("ocrTax").value=f.tax??0;$("ocrConcept").value=f.concept||"";$("ocrCategory").value=f.category||"Otros";$("ocrPayment").value=f.payment||"Otro";$("ocrTaxId").value=f.taxId||"";$("ocrInvoiceNo").value=f.invoiceNo||"";
+  const f=lastExtraction||{};$("ocrMerchant").value=f.merchant||"";$("ocrDate").value=f.date||"";$("ocrAmount").value=f.amount??"";$("ocrTax").value=f.tax??0;$("ocrConcept").value=f.concept||"";$("ocrCategory").value=f.category||"Otros";$("ocrPayment").value=f.payment||"Otro";$("ocrTaxId").value=f.taxId||"";$("ocrInvoiceNo").value=f.invoiceNo||"";
   $("confMerchant").textContent=confText(f.confidence?.merchant);$("confDate").textContent=confText(f.confidence?.date);$("confAmount").textContent=confText(f.confidence?.amount);$("confTax").textContent=confText(f.confidence?.tax);$("confConcept").textContent=confText(f.confidence?.concept);$("ocrOverallConfidence").textContent=`OCR ${Math.round(f.overall||0)}%`;
   setField("fieldMerchant",f.confidence?.merchant||0);setField("fieldDate",f.confidence?.date||0);setField("fieldAmount",f.confidence?.amount||0);setField("fieldTax",f.confidence?.tax||0);setField("fieldConcept",f.confidence?.concept||0);
   chips("merchantCandidates",(f.merchantCandidates||[]).map(x=>x.name),f.merchant,v=>{$("ocrMerchant").value=v;renderCandidateSelections()} );
   chips("amountCandidates",(f.amountCandidates||[]).filter((v,i,a)=>a.indexOf(v)===i),f.amount,v=>{$("ocrAmount").value=v;renderFiscalCheck();renderCandidateSelections()},v=>money(v));
   renderItems(f.items||[]);renderFiscalCheck();$("ocrRawText").textContent=ocrText;
   reviewCanvas.width=dst.width;reviewCanvas.height=dst.height;reviewCanvas.getContext("2d").drawImage(dst,0,0);
-  const low=["merchant","date","amount","concept"].filter(k=>(f.confidence?.[k]||0)<75).length;$("reviewSummary").textContent=low?`Hay ${low} campo${low===1?"":"s"} que conviene revisar.`:"La lectura es consistente. Revisa y guarda.";
+  const low=["merchant","date","amount","concept"].filter(k=>(f.confidence?.[k]||0)<75).length;const notices=f.flags||[];$("reviewSummary").textContent=notices.length?notices.join(" "):(low?"Hay "+low+" campos que conviene revisar.":"Comprueba los datos con el ticket antes de guardar.");
   updateProgress(100,"Lectura completada","Listo para revisar")
 }
 function renderCandidateSelections(){const f=lastExtraction||{};chips("merchantCandidates",(f.merchantCandidates||[]).map(x=>x.name),$("ocrMerchant").value,v=>{$("ocrMerchant").value=v;renderCandidateSelections()});chips("amountCandidates",(f.amountCandidates||[]).filter((v,i,a)=>a.indexOf(v)===i),Number($("ocrAmount").value),v=>{$("ocrAmount").value=v;renderFiscalCheck();renderCandidateSelections()},v=>money(v))}
@@ -323,11 +353,11 @@ $("editItemsBtn").onclick=()=>{const txt=(lastExtraction?.items||[]).map(x=>x.na
 
 function buildPayload(){
   const fields={merchant:$("ocrMerchant").value.trim(),date:$("ocrDate").value,amount:Number($("ocrAmount").value),tax:Number($("ocrTax").value||0),concept:$("ocrConcept").value.trim(),category:$("ocrCategory").value,payment:$("ocrPayment").value};
-  const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.4.2",cropConfidence}};
+  const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.6",cropConfidence}};
   return {fields,scan,submissionId:scanSubmissionId}
 }
 async function doSave(force=false){
-  if(saving)return;saving=true;$("saveScanBtn").disabled=true;$("saveScanBtn").textContent="Guardando gasto y ticket...";
+  if(saving)return;const checked=buildPayload().fields;if(!checked.merchant||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(checked.date)||!Number.isFinite(checked.amount)||checked.amount<=0){window.gasto360Cloud.toast("Revisa comercio, fecha e importe. No se guardarán valores supuestos.","warn",7000);return}saving=true;$("saveScanBtn").disabled=true;$("saveScanBtn").textContent="Guardando gasto y ticket...";
   try{
     const r=await window.gasto360Cloud.saveScannedExpense(buildPayload(),force);
     if(r.duplicate){$("scanDuplicateWarning").hidden=false;$("scanDuplicateExisting").innerHTML=r.rows.map(x=>`<div><b>${escapeHtml(x.merchant)}</b> · ${escapeHtml(x.date)} · ${money(x.amount)}</div>`).join("");$("scanDuplicateWarning").scrollIntoView({behavior:"smooth",block:"center"});return}

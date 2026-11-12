@@ -1,0 +1,42 @@
+GASTO360 R8.6 - ESCANER EN MODO PRUEBAS
+=======================================
+
+IMPORTANTE
+- Este paquete no sustituye tu aplicación Gasto360.
+- Funciona sin cuenta Google y no envía imágenes ni datos a Supabase.
+- Los resultados y fotografías se guardan temporalmente en la pestaña actual.
+- Al cerrar o actualizar la pestaña se pierden. Antes puedes descargar
+  el informe JSON y, desde Resultados, las imágenes originales/corregidas.
+
+PASOS EN WINDOWS
+1. Descomprime el ZIP del repositorio en una carpeta de tu ordenador.
+2. Abre la subcarpeta: pruebas-r86.
+3. Haz DOBLE CLIC en INICIAR_GASTO360_R86_PRUEBAS.bat.
+4. Se abre http://127.0.0.1:18986/ en tu navegador.
+5. Pulsa "Elegir de galería" o usa una cámara del ordenador.
+6. Verifica el borde amarillo; si está sobre la carpeta, mueve sus esquinas.
+7. Pulsa Continuar y revisa los campos detectados. Comprueba especialmente
+   Comercio, Fecha y Total pagado.
+8. Guarda el resultado local, entra en Resultados y descarga el informe JSON.
+9. Para detener el servidor, cierra su ventana negra.
+
+PASOS EN ANDROID / SAMSUNG INTERNET
+- El servidor local de Windows NO es accesible desde el móvil.
+- Abre la dirección HTTPS de pruebas:
+  https://akl74.github.io/gasto360-cloud/pruebas-r86/
+- Esa URL ofrece el mismo escáner aislado, sin necesidad de inicio de sesión.
+- Usa "Abrir cámara" o "Elegir de galería", revisa el recorte y extrae el OCR.
+- La web descargará bibliotecas OpenCV y Tesseract desde sus CDN habituales;
+  requiere Internet para arrancar el reconocimiento.
+
+SI OBSERVAS UN ERROR
+- Haz captura de Encuadre y del resultado de Datos detectados.
+- Descarga el informe JSON antes de cerrar el navegador.
+- No borres ni sobreescribas el Gasto360 actual.
+
+LIMITACIONES
+- El escáner está en evaluación: fotos borrosas, documentos diminutos y
+  facturas fiscales complejas pueden requerir corrección manual.
+- Los justificantes de datáfono no equivalen a facturas desglosadas.
+- No se prueban todavía las escrituras en la base de datos de producción.
+- La instalación de pruebas no añade una nueva entrada al HUB.

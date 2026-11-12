@@ -1,0 +1,29 @@
+name: Validación escáner Gasto360 R8.6
+on:
+  pull_request:
+    paths:
+      - "scanner.js"
+      - "scanner-r86-core.js"
+      - "app.js"
+      - "index.html"
+      - "tests/**"
+      - ".github/workflows/test-scanner-r86.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Sintaxis JS
+        run: |
+          node --check scanner.js
+          node --check scanner-r86-core.js
+          node --check app.js
+          node --check sw.js
+      - name: Tests del escáner
+        run: node tests/scanner-r86.test.cjs
