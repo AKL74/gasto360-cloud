@@ -33,7 +33,7 @@ function textScore(r){
 }
 function combine(attempts){
  const best=attempts.slice().sort((a,b)=>textScore(b)-textScore(a))[0];
- const result=structuredClone?structuredClone(best.fields):JSON.parse(JSON.stringify(best.fields));
+ const result=(typeof structuredClone==="function")?structuredClone(best.fields):JSON.parse(JSON.stringify(best.fields));
  const choices=['merchant','date','amount','payment','tax','concept','taxId','invoiceNo'];
  const evidence={},flags=new Set(result.flags||[]);
  for(const key of choices){
@@ -67,6 +67,10 @@ function combine(attempts){
  const products=attempts.filter(r=>r.fields.items?.length).sort((a,b)=>b.fields.items.length-a.fields.items.length);
  if(products.length)result.items=products[0].fields.items;
  if(!result.concept&&result.items?.length)result.concept=result.items.slice(0,3).map(x=>x.name).join(' + ');
+ if(result.merchant)for(const f of [...flags])if(/Comercio no verificado|varios comercios/.test(f)&&!result.merchantCandidates?.length)flags.delete(f);
+ if(result.date)for(const f of [...flags])if(/Fecha no verificada/.test(f))flags.delete(f);
+ if(result.amount!=='')for(const f of [...flags])if(/Importe total no verificado/.test(f))flags.delete(f);
+ if(result.items?.length)for(const f of [...flags])if(/No se han reconocido productos/.test(f))flags.delete(f);
  if(!result.merchant)flags.add('No se ha podido leer el establecimiento.');
  if(!result.date)flags.add('No se ha podido leer la fecha.');
  if(result.amount==='')flags.add('No se ha podido leer el importe TOTAL.');
