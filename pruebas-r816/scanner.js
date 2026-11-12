@@ -96,7 +96,7 @@ async function autoEdges(){
       }catch(e){console.warn("Segmentación de papel no concluyente",e)}
       finally{[paperMask,kernel,paperHierarchy].forEach(x=>{try{x&&x.delete()}catch{}});try{paperContours&&paperContours.delete()}catch{}}
     }
-    // R8.15: detección alternativa del papel (fondo oscuro, silla o mesa).
+    // R8.16: detección alternativa del papel (fondo oscuro, silla o mesa).
     // Propuestas de imagen completa SIN agrandar artificialmente cada letra.
     // Se premia una tira vertical clara cerca del centro, frente a otros papeles laterales.
     {
@@ -134,7 +134,7 @@ async function autoEdges(){
           }
           contoursPaper.delete();contoursPaper=null;hierPaper.delete();hierPaper=null;
         }
-      }catch(e){console.warn("R8.15: segmentación alternativa no disponible",e)}
+      }catch(e){console.warn("R8.16: segmentación alternativa no disponible",e)}
       finally{[mask,kclose,kopen,contoursPaper,hierPaper].forEach(m=>{try{m&&m.delete()}catch{}})}
     }
     candidates.sort((a,b)=>b.score-a.score);
@@ -391,9 +391,10 @@ async function recognizeCanvas(c,label,base,span){
 }
 async function runOCR(){
   updateProgress(27,"Reconociendo texto…","Lectura en varias zonas y tratamientos de imagen");
-  if(!window.Gasto360OCRR815)throw new Error("No se cargó el motor OCR R8.15. Recarga la página.");
+  if(!window.Gasto360OCRR815)throw new Error("No se cargó el motor OCR R8.16. Recarga la página.");
   const r=await window.Gasto360OCRR815.run(dst,(raw,conf,known)=>window.Gasto360ScanR86.extract(raw,conf,known),knownMerchants,updateProgress);
-  const analysis=window.Gasto360DesgloseR815.analyze(r.diagnostics?.passes||[],r.fields);
+  const analysis=window.Gasto360DesgloseR816.analyze(r.diagnostics?.passes||[],r.fields);
+  window.Gasto360DesgloseR816.applyResult(r.fields,analysis);
   r.fields.items=analysis.items;
   r.fields.desglose=analysis;
   // Una cifra identificada y cuadrada como descuento no debe sugerirse como TOTAL.
@@ -445,7 +446,7 @@ function renderFinalReview(){
 function renderCandidateSelections(){const f=lastExtraction||{};chips("merchantCandidates",(f.merchantCandidates||[]).map(x=>x.name),$("ocrMerchant").value,v=>{$("ocrMerchant").value=v;renderCandidateSelections()});chips("amountCandidates",(f.amountCandidates||[]).filter((v,i,a)=>a.indexOf(v)===i),Number($("ocrAmount").value),v=>{$("ocrAmount").value=v;renderFiscalCheck();renderCandidateSelections()},v=>money(v))}
 let editingItems=false;
 function renderItems(){
- const f=lastExtraction||{},items=f.items||[],engine=window.Gasto360DesgloseR815;
+ const f=lastExtraction||{},items=f.items||[],engine=window.Gasto360DesgloseR816;
  $("itemsTitle").textContent=items.length?items.length+" artículo"+(items.length===1?"":"s")+" identificado"+(items.length===1?"":"s"):"Sin artículos identificados";
  $("editItemsBtn").textContent=editingItems?"Terminar edición":"Editar desglose";
  $("addItemBtn").hidden=!editingItems;
@@ -480,8 +481,10 @@ function renderItems(){
  renderVatDetails();
 }
 function updateReconciliation(){
- const f=lastExtraction||{},api=window.Gasto360DesgloseR815,items=f.items||[];
+ const f=lastExtraction||{},api=window.Gasto360DesgloseR816,items=f.items||[];
  const paid=Number($("ocrAmount").value||0),sum=api.summary(items,paid);
+ const disputed=items.filter(x=>x.needsReview&&!x.confirmedByUser);
+ if(disputed.length&&sum.status==='cuadrado')sum.status='pendiente';
  if(f.desglose)f.desglose.reconciliation=sum;
  const box=$("purchaseReconciliation");
  const status=sum.status==='cuadrado'?'✓ CUADRADO':'⚠ PENDIENTE DE REVISIÓN';
@@ -491,13 +494,20 @@ function updateReconciliation(){
   '<span>Descuentos<br><strong>−'+money(sum.discounts)+'</strong></span>'+
   '<span>Neto reconocido<br><strong>'+money(sum.netKnown)+'</strong></span>'+
   '<span>Total del ticket<br><strong>'+(sum.total!==null?money(sum.total):'Pendiente')+'</strong></span></div>'+
-  (sum.difference!==null&&sum.status!=='cuadrado'?'<p>Diferencia por comprobar: <strong>'+money(sum.difference)+'</strong>. '+
-    (sum.unknown?'Hay '+sum.unknown+' artículo(s) con importe no legible.':'Revisa los importes y descuentos.')+'</p>':'')+
+  (sum.difference!==null&&sum.status!=='cuadrado'?'<p>'+
+    (Math.abs(sum.difference)<=.025&&disputed.length?
+      '<strong>La suma coincide, pero quedan '+disputed.length+' artículo(s) con lecturas contradictorias por revisar.</strong>':
+      'Diferencia por comprobar: <strong>'+money(sum.difference)+'</strong>. '+
+      (sum.unknown?'Hay '+sum.unknown+' artículo(s) con importe no legible.':'Revisa los importes y descuentos.'))+
+      '</p>':'')+
+  (f.desglose?.amountAudit?.corrected?'<p class="total-reconciled">✓ Total corregido mediante productos + IVA + pago: <b>'+money(f.desglose.amountAudit.amount)+'</b>. El OCR principal sugería '+money(f.desglose.amountAudit.ocrOriginal)+'. <b>Revisa el ticket.</b></p>':'')+
   (sum.suggestion?'<p class="unconfirmed-amount">El precio de '+escapeHtml(items.find(x=>x.id===sum.suggestion.itemId)?.name||'un artículo')+
     ' podría ser '+money(sum.suggestion.amount)+' por diferencia matemática. <b>No está leído del ticket.</b></p>'+
     '<button class="light-btn" type="button" id="confirmDifference">Confirmar manualmente '+money(sum.suggestion.amount)+'</button>':'');
  const note=$("itemsReviewNote");
- note.textContent="Descuentos recuperados por suma y orden de lectura. Son provisionales: comprueba su asociación con cada artículo. Los precios alternativos requieren aceptación manual. Todo queda solo en esta sesión.";
+ note.textContent=f.desglose?.amountAudit?.verified?
+  "Los productos al peso usan kg × €/kg y se comparan con la cifra impresa en varias lecturas. Las discrepancias se marcan para revisar. Todo queda solo en esta sesión.":
+  "Los descuentos recuperados por suma y orden de lectura son provisionales. Los precios alternativos requieren aceptación manual. Todo queda solo en esta sesión.";
  const b=$("confirmDifference");if(b)b.onclick=()=>{
   const suggested=sum.suggestion,idx=items.findIndex(x=>x.id===suggested.itemId);
   if(idx<0)return;
@@ -539,7 +549,8 @@ $("itemsList").addEventListener("change",e=>{
  if(!prev)return;
  const candidate={...prev,[field]:input.value};
  try{
-  const normalized=window.Gasto360DesgloseR815.normalizeEditable(candidate);
+  const normalized=window.Gasto360DesgloseR816.normalizeEditable(candidate);
+  normalized.confirmedByUser=true;normalized.needsReview=false;
   lastExtraction.items[i]=normalized;renderItems();
  }catch(err){window.gasto360Cloud.toast("Revisa el artículo: "+err.message,"warn",6000);renderItems()}
 });
@@ -551,8 +562,8 @@ $("itemsList").addEventListener("click",e=>{
   if(!item||!Number.isFinite(item.proposal))return;
   const proposal=Number(item.proposal);
   if(!window.confirm("¿Has comprobado en la imagen ORIGINAL que "+item.name+" cuesta "+money(proposal)+"? Este valor viene de una lectura alternativa y puede ser incorrecto."))return;
-  item.gross=proposal;item.net=window.Gasto360DesgloseR815.round(proposal-Number(item.discount||0));
-  item.manualReview=true;item.confirmedByUser=true;
+  item.gross=proposal;item.net=window.Gasto360DesgloseR816.round(proposal-Number(item.discount||0));
+  item.manualReview=true;item.confirmedByUser=true;item.needsReview=false;
   item.reviewReasons=["Precio confirmado manualmente por usuario; propuesta OCR no validada automáticamente."];
   renderItems();return;
  }
@@ -564,7 +575,10 @@ $("itemsList").addEventListener("click",e=>{
 function buildPayload(){
   const items=(lastExtraction?.items||[]).map(x=>({...x}));
    const desglose=lastExtraction?.desglose||null;
-   if(desglose)desglose.reconciliation=window.Gasto360DesgloseR815.summary(items,Number($("ocrAmount").value||0));
+   if(desglose){
+    desglose.reconciliation=window.Gasto360DesgloseR816.summary(items,Number($("ocrAmount").value||0));
+    if(items.some(x=>x.needsReview&&!x.confirmedByUser))desglose.reconciliation.status='pendiente';
+   }
    const fields={merchant:$("ocrMerchant").value.trim(),date:$("ocrDate").value,amount:Number($("ocrAmount").value),
     tax:$("ocrTax").value.trim()===""?null:Number($("ocrTax").value),
     concept:$("ocrConcept").value.trim(),category:$("ocrCategory").value,payment:$("ocrPayment").value,
@@ -572,7 +586,7 @@ function buildPayload(){
     ivaEstado:desglose?.fiscal?.status==="validado"&&
       Math.abs(desglose.fiscal.gross-Number($("ocrAmount").value||0))<=.025&&
       Math.abs(desglose.fiscal.tax-Number($("ocrTax").value||0))<=.025?"validado":"pendiente"};
-  const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.15",ocrDiagnostics,cropConfidence}};
+  const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.16",ocrDiagnostics,cropConfidence}};
   return {fields,scan,submissionId:scanSubmissionId}
 }
 async function doSave(force=false){
@@ -593,11 +607,11 @@ window.addEventListener("pagehide",()=>stopCamera());
 window.addEventListener("beforeunload",()=>stopCamera());
 $("downloadOcrDiagnostic").onclick=()=>{
   if(!ocrDiagnostics){window.gasto360Cloud.toast("Todavía no se ha ejecutado el reconocimiento.","warn");return}
-  const report={version:"R8.15",createdAt:new Date().toISOString(),diagnostics:ocrDiagnostics,fields:lastExtraction,
+  const report={version:"R8.16",createdAt:new Date().toISOString(),diagnostics:ocrDiagnostics,fields:lastExtraction,
     note:"Informe local: contiene texto reconocido del ticket. Revisa sus datos personales antes de compartirlo."};
   const blob=new Blob([JSON.stringify(report,null,2)],{type:"application/json"});
   const url=URL.createObjectURL(blob),link=document.createElement("a");
-  link.href=url;link.download="diagnostico_ocr_gasto360_r815_"+new Date().toISOString().slice(0,10)+".json";
+  link.href=url;link.download="diagnostico_ocr_gasto360_r816_"+new Date().toISOString().slice(0,10)+".json";
   document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);
 };
 window.gasto360Scanner={reset,stopCamera,startCamera};
