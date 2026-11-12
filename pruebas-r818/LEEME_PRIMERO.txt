@@ -1,0 +1,44 @@
+GASTO360 R8.18 - EXTRACCION PRIORITARIA
+=========================================
+VERSIÓN DE PRUEBAS. No modifica Gasto360 principal, HUB ni Supabase.
+
+ANDROID
+https://akl74.github.io/gasto360-cloud/pruebas-r818/?v=817
+
+WINDOWS
+Abrir INICIAR_GASTO360_R818_PRUEBAS.bat desde la carpeta pruebas-r818.
+Necesita Python 3; usa solo 127.0.0.1:18918.
+
+NOVEDADES R8.18
+- IVA 4% + 21% con cuota 031 sin separador decimal, solo si valida aritméticamente.
+- Número de factura simplificada completo.
+- CIF validado por control fiscal; si un dígito se deduce se exige revisión visual.
+- Se eliminan falsos artículos como IDTAL y se distinguen 500 GR del peso vendido.
+- Solamente se sustituye el desglose si todas las líneas cuadran con el total.
+
+DATOS QUE SE LEEN PRIMERO
+1. EMPRESA
+2. FECHA
+3. TOTAL realmente pagado (no confundir con IVA o efectivo entregado)
+4. IVA y base imponible
+5. FORMA DE PAGO
+Después se intenta interpretar los artículos.
+
+REGLAS IMPORTANTES
+- El IVA puede tener una sola fila (21%) o varias (4%, 10%, 21%).
+- El resumen fiscal con BASE + CUOTA permite comprobar la suma.
+- El importe de tarjeta o la entrega de efectivo NO es un producto.
+- Si la lectura no permite verificar el total, no se inventa: se pide revisión.
+- Una línea fiscal "TOTAL base cuota" no representa el importe pagado.
+- Las dudas en productos NO invalidan los datos esenciales correctos.
+- El diagnóstico OCR nunca se comparte automáticamente.
+
+RESULTADOS ESPERADOS DE PRUEBAS REALES (NO INCLUIDAS EN EL CÓDIGO)
+Mercadona Rota 01/10/2026:
+Total 1,65 EUR; base 1,36 EUR; IVA 0,29 EUR; efectivo.
+Mercadona Jerez 26/09/2026:
+Total 42,08 EUR; base 40,27 EUR; IVA 1,81 EUR; tarjeta.
+
+SEGURIDAD
+Las imágenes y JSON reales NO se incluyen en el repositorio.
+Guardar resultado local conserva la sesión, NO sube el gasto a tu cuenta.
