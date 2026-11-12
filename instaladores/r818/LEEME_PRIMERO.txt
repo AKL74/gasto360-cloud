@@ -1,0 +1,34 @@
+GASTO360 R8.18 - ZIP PARA EL HUB CAMACHO (WINDOWS)
+=====================================================
+Versión web integrada en Gasto360 Cloud real y su código fuente, no es el laboratorio.
+
+INSTALACIÓN EN WINDOWS
+1. Descomprimir el ZIP completo en cualquier carpeta.
+2. Doble clic en ACTUALIZAR_GASTO360_HUB_R818.bat
+3. El instalador buscará SOLO C:\App_CAMACHO\CAMACHO_APP_HUB\apps\Gasto360.
+4. Si reconoce el frontend Gasto360 Cloud integrado en esa carpeta, hará backup
+   y reemplazará SOLO HTML, JS, CSS y manifest web; respetará config.js.
+5. Si la instalación Windows usa una interfaz FastAPI distinta, dejará el
+   módulo actualizado en apps\Gasto360\actualizaciones\R8.18_PENDIENTE_COMPATIBILIDAD
+   y no modificará el backend, el HUB, los datos ni el puerto 8877.
+6. En caso de error no fuerces una copia manual sobre archivos desconocidos.
+
+WEB / MÓVIL
+https://akl74.github.io/gasto360-cloud/?v=818
+La Gasto360 Cloud real conserva acceso con tu cuenta y guardado en Supabase.
+
+DATOS
+- Las extracciones corregidas se muestran antes de guardar.
+- Al confirmar, se usa el mismo mecanismo de gastos, documentos, RLS y
+  comprobacion de duplicados de la version Cloud.
+- La base historica, Supabase, apps.json y otras aplicaciones no se migran.
+- El informe OCR puede contener datos personales; no publicarlo.
+
+REQUISITOS
+- Windows + PowerShell 5.1 o superior, HUB Gasto360 existente.
+- La web y OCR requieren conexión de red para autenticación y bibliotecas CDN.
+- Versión R8.18 del frontend; no sustituye ni desinstala el backend FastAPI.
+
+ESTADO
+Integración web validada con pruebas automatizadas. La compatibilidad del
+frontend local se verificará al ejecutar el instalador en tu equipo.
