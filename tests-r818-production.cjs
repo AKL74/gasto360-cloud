@@ -1,0 +1,27 @@
+'use strict';
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const html=fs.readFileSync('index.html','utf8');
+const js=fs.readFileSync('scanner.js','utf8');
+const app=fs.readFileSync('app.js','utf8');
+const sw=fs.readFileSync('sw.js','utf8');
+const files=['scanner-r86-core.js','ocr-r87.js','desglose-r814.js','rescate-r815.js','interpretacion-r816.js','esenciales-r817.js','revision-r818.js','scanner.js'];
+assert.equal((html.match(/id="scannerView"/g)||[]).length,1);
+for(const file of files){assert.ok(fs.existsSync(file),file+' falta');assert.equal((html.match(new RegExp('src="./'+file.replaceAll('.','\\.')+'\\?v=8.18"','g'))||[]).length,1,file+' debe cargarse solo una vez');}
+const p=files.map(f=>html.indexOf('src="./'+f+'?v=8.18"'));
+assert.ok(p.every((x,i)=>i===0||x>p[i-1]),'orden de dependencias OCR');
+for(const id of ['nativeCameraFile','galleryFile','captureMeta','essentialSummary','downloadOcrDiagnostic','purchaseReconciliation','taxBreakdownRows','ocrTaxId','ocrInvoiceNo','saveScanBtn'])assert.ok(html.includes('id="'+id+'"'),'campo '+id);
+assert.ok(js.includes('Gasto360RevisionR818.apply('),'motor conectado');
+assert.ok(js.includes('window.gasto360Cloud.saveScannedExpense(buildPayload(),force)'),'guardado real en cuenta');
+assert.ok(js.includes('taxId:$("ocrTaxId").value.trim()'),'conservar NIF editado');
+assert.ok(js.includes('invoiceNo:$("ocrInvoiceNo").value.trim()'),'conservar factura editada');
+assert.ok(!js.includes('Resultado de prueba registrado localmente'),'prohibido guardar solo en pruebas');
+assert.ok(app.includes('async function saveScannedExpense('),'guardado via Supabase');
+assert.ok(app.includes('await attachScanDocuments('),'adjuntos persistentes');
+assert.ok(app.includes('findSimilar(expense)'),'control de duplicados');
+assert.ok(sw.includes('gasto360-cloud-r8-18'),'cache version');
+const forbidden=['pruebas-r818','test-app.js','NO se envían a Supabase.'];
+for(const f of forbidden)assert.ok(!html.includes(f),'sin código laboratorio: '+f);
+const ids=[...html.matchAll(/\bid="([^"]+)"/g)].map(x=>x[1]);
+const duplicates=ids.filter((id,i)=>ids.indexOf(id)<i);
+assert.deepEqual(duplicates,[],'IDs de interfaz duplicados: '+duplicates.join(','));
+console.log('OK integración R8.18: módulos OCR, UI real, login y guardado Supabase, adjuntos, duplicados, cache.');
