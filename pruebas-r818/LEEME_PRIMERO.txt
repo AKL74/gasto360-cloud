@@ -1,13 +1,20 @@
-GASTO360 R8.17 - EXTRACCION PRIORITARIA
+GASTO360 R8.18 - EXTRACCION PRIORITARIA
 =========================================
 VERSIÓN DE PRUEBAS. No modifica Gasto360 principal, HUB ni Supabase.
 
 ANDROID
-https://akl74.github.io/gasto360-cloud/pruebas-r817/?v=817
+https://akl74.github.io/gasto360-cloud/pruebas-r818/?v=817
 
 WINDOWS
-Abrir INICIAR_GASTO360_R817_PRUEBAS.bat desde la carpeta pruebas-r817.
-Necesita Python 3; usa solo 127.0.0.1:18917.
+Abrir INICIAR_GASTO360_R818_PRUEBAS.bat desde la carpeta pruebas-r818.
+Necesita Python 3; usa solo 127.0.0.1:18918.
+
+NOVEDADES R8.18
+- IVA 4% + 21% con cuota 031 sin separador decimal, solo si valida aritméticamente.
+- Número de factura simplificada completo.
+- CIF validado por control fiscal; si un dígito se deduce se exige revisión visual.
+- Se eliminan falsos artículos como IDTAL y se distinguen 500 GR del peso vendido.
+- Solamente se sustituye el desglose si todas las líneas cuadran con el total.
 
 DATOS QUE SE LEEN PRIMERO
 1. EMPRESA
