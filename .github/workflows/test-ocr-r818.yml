@@ -1,0 +1,31 @@
+name: Gasto360 R8.18 - conciliacion fiscal y documentos
+on:
+  push:
+    paths:
+      - 'pruebas-r818/**'
+      - '.github/workflows/test-ocr-r818.yml'
+  pull_request:
+    paths:
+      - 'pruebas-r818/**'
+      - '.github/workflows/test-ocr-r818.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Sintaxis
+        run: |
+          node --check pruebas-r818/scanner.js
+          node --check pruebas-r818/esenciales-r817.js
+          node --check pruebas-r818/revision-r818.js
+          node --check pruebas-r818/interpretacion-r816.js
+      - name: Pruebas R8.17 heredadas
+        run: node pruebas-r818/tests-r817.cjs
+      - name: Pruebas de IVA y documentacion R8.18
+        run: node pruebas-r818/tests-r818.cjs
