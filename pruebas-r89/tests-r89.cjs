@@ -53,7 +53,7 @@ vm.runInNewContext(src,sandbox);
 const a=core.extract('LIDL\n04/11/2026\nTOTAL 6,93\nEFECTIVO',57,[]);
 const b=core.extract('LIDL\n04/11/2026\nIMP. : 42,48 EUR\nTARJETA',90,[]);
 const c=core.extract(r88,88,[]);
-const joined=sandbox.window.Gasto360OCRR87.combine([
+const joined=sandbox.window.Gasto360OCRR89.combine([
  {label:'original',confidence:57,fields:a,text:'TOTAL 6,93'},
  {label:'pie',confidence:90,fields:b,text:'IMP. : 42,48'},
  {label:'contraste',confidence:88,fields:c,text:r88}
