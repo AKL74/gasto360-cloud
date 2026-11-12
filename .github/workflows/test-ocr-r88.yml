@@ -1,0 +1,25 @@
+name: Comprobaciones Gasto360 OCR R8.8
+on:
+  pull_request:
+    paths:
+      - "pruebas-r88/**"
+      - ".github/workflows/test-ocr-r88.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Sintaxis JS
+        run: |
+          node --check pruebas-r88/scanner.js
+          node --check pruebas-r88/scanner-r86-core.js
+          node --check pruebas-r88/ocr-r87.js
+          node --check pruebas-r88/test-app.js
+      - name: Pruebas de pagos y totales
+        run: node pruebas-r88/tests-r88.cjs
