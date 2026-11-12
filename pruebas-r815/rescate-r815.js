@@ -58,7 +58,8 @@ function parseFull(pass){
     }
     vat=(suffix.match(/\b([ABC])\b/i)||[])[1]||null;
    }
-   if(accepted&&all.length&&(!q||all.length>1))name=line.slice(0,all[0].start).trim();
+   if(all.length&&all[0].start>3)name=line.slice(0,all[0].start).trim();
+  name=name.replace(/\s+\d{2,3}\s*[ABC]\s*$/i,'').trim();
   }
   if(name.length<4)continue;
   items.push({name,raw:line,label:pass.label,line:i,price,quantity,unitPrice,vat,weightKg:null,reason});
@@ -98,14 +99,14 @@ function headerData(text){
  const offers=[];
  for(let i=0;i<entries.length;i++){
   if(!/^(?:PROMO|PROMOCION|DTO\b)/i.test(entries[i].line))continue;
-  let best=null;
+  const choices=[];
   for(let j=Math.max(0,i-3);j<Math.min(entries.length,i+4);j++){
    if(j===i)continue;
    const e=entries[j],v=e.m.at(-1);if(!v||v.amount<=0||e.vat||/\/KG/i.test(e.line))continue;
    const dist=j-i,score=(dist<0?2:1.3)-Math.abs(dist)*.18+(/^\s*-/.test(e.line)?2:0);
-   if(!best||score>best.score)best={value:v.amount,raw:e.line,score};
+   choices.push({value:v.amount,raw:e.line,score,index:j});
   }
-  offers.push(best);
+  offers.push(choices.sort((a,b)=>b.score-a.score).slice(0,5));
  }
  return {entries,offers};
 }
@@ -221,15 +222,31 @@ function analyze(passes,fields){
  const promoSlots=left.promos;
  const promoNumbers=h.offers;
  const statedDiscount=findDiscountTotal(passes||[]);
- let sum=0,applied=0;
- // Únicamente se asignan descuentos si los cuatro importes recuperados cuadran con el total.
- if(promoSlots.length===promoNumbers.length&&promoNumbers.length&&promoNumbers.every(Boolean)){
-  const values=promoNumbers.map(x=>x.value);sum=R(values.reduce((a,b)=>a+b,0));
-  if(statedDiscount!==null&&Math.abs(sum-statedDiscount)<.025){
+ let sum=0,applied=0,chosen=null;
+ // Elegir entre importes OCR alternativos ÚNICAMENTE cuando el conjunto
+ // coincide con la cifra de descuentos impresa. No duplicar una línea OCR.
+ if(statedDiscount!==null&&promoSlots.length===promoNumbers.length&&promoNumbers.length&&promoNumbers.every(x=>x.length)){
+  let bestScore=-Infinity;
+  function search(i,soFar,total,used,score){
+   if(i===promoNumbers.length){
+    if(Math.abs(R(total)-statedDiscount)>.025)return;
+    if(score>bestScore){bestScore=score;chosen=soFar.slice()}
+    return;
+   }
+   for(const o of promoNumbers[i]){
+    if(used.has(o.index))continue;
+    used.add(o.index);soFar.push(o);
+    search(i+1,soFar,total+o.value,used,score+o.score);
+    soFar.pop();used.delete(o.index);
+   }
+  }
+  search(0,[],0,new Set(),0);
+  if(chosen){
+   sum=R(chosen.reduce((n,x)=>n+x.value,0));
    promoSlots.forEach((p,i)=>{
-    const row=rows[p.at],d=values[i];if(!row||d<=0)return;
-    row.discount=d;row.discountEvidence.push({label:'cabecera',raw:promoNumbers[i].raw,amount:d,signInferred:true});
-    row.reviewReasons.push('Promoción recuperada por orden y cuadre del total: comprobar.');
+    const row=rows[p.at],d=chosen[i].value;if(!row||d<=0)return;
+    row.discount=d;row.discountEvidence.push({label:'cabecera',raw:chosen[i].raw,amount:d,signInferred:true});
+    row.reviewReasons.push('Promoción recuperada por orden y cuadre del descuento total: comprobar.');
     applied++;
    });
   }
@@ -239,7 +256,7 @@ function analyze(passes,fields){
  const fiscal=parseVat(passes,Number(fields?.amount||0));
  return {version:'R8.15',items:rows,reconciliation,fiscal,
    discountAudit:{stated:statedDiscount,readFromHeader:sum,assigned:R(rows.reduce((n,x)=>n+x.discount,0)),
-     count:applied,slots:promoSlots.length,headOffers:promoNumbers.map(x=>x?.value??null)},
+     count:applied,slots:promoSlots.length,headOffers:promoNumbers.map(x=>x.map(y=>y.value))},
    warnings:applied===0&&promoSlots.length?['Se detectan promociones sin importes fiables; no se han asignado automáticamente.']:[],
    sourcePasses:(passes||[]).map(x=>({label:x.label,characters:x.text?.length||0,confidence:x.confidence||0})),provisional:true};
 }
