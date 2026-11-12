@@ -50,3 +50,96 @@ main{max-width:1160px;margin:auto;padding:20px}.card,.login-card{background:#fff
   .ticket-guide{inset:6% 9%}
   .live-camera-actions{position:sticky;bottom:0;background:#fff;margin:0 -15px -15px;padding:12px 15px calc(12px + env(safe-area-inset-bottom));z-index:5}
 }
+
+/* R8.13: captura nativa prioritaria, información de resolución y alternativa explícita. */
+.native-camera-intro{padding:14px 16px;border:1px solid #9bc3db;border-radius:14px;background:#e9f4fc;color:#193d56;margin-bottom:15px}
+.native-camera-intro strong{display:block;font-size:16px}
+.native-camera-intro p{margin:6px 0 0;font-size:13px;line-height:1.5}
+.capture-actions-native{grid-template-columns:1fr 1fr}
+.capture-button.primary-native{background:#114c6e;color:#fff;border:2px solid #86c7e7;box-shadow:0 3px 12px #032f4433;text-align:center;padding:13px 17px}
+.capture-button.primary-native:focus-within,.capture-button:focus-visible{outline:3px solid #edba59;outline-offset:3px}
+.camera-alternative{margin-top:14px;padding:12px 14px;background:#f1f5f6;border:1px solid #c2ced1;border-radius:12px;color:#224155}
+.camera-alternative summary{cursor:pointer;font-size:14px;font-weight:750}
+.camera-alternative p{font-size:13px;line-height:1.5}
+.camera-alternative button{width:100%;border:0;min-height:48px;margin-top:6px}
+.capture-meta{background:#e8f2f9;color:#17435e;padding:12px 14px;border:1px solid #a9c9d9;border-radius:12px;margin-bottom:12px;font-size:13px;line-height:1.55;overflow-wrap:anywhere}
+@media(max-width:680px){.capture-actions-native{grid-template-columns:1fr}.capture-button.primary-native{min-height:78px;font-size:17px}}
+
+/* R8.14: paneles industriales sencillos para lectura de compras en móvil */
+.breakdown-card{margin:16px 0;padding:15px;border:1px solid #35505a;border-radius:18px;background:#151f24;color:#dcebf2}
+.breakdown-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.breakdown-header h3{font-size:18px;margin:0}
+.breakdown-status{font-weight:750;font-size:12px;padding:6px 10px;border-radius:999px;background:#344a54;color:#f3f8fc}
+.breakdown-status.status-ok{background:#0c4936;color:#bdf1da}.breakdown-status.status-warn{background:#68471b;color:#fff0c3}
+.vat-table .table-scroll{overflow-x:auto;max-width:100%}
+.vat-table table{width:100%;border-collapse:collapse;font-size:13px;min-width:410px}
+.vat-table th,.vat-table td{padding:10px 8px;border-bottom:1px solid #36515c;text-align:right;white-space:nowrap}
+.vat-table th:first-child,.vat-table td:first-child{text-align:left}
+.vat-table p{padding:9px 0 0;margin:0;line-height:1.5}
+.small-notice{font-size:13px;color:#9fb5c3;line-height:1.5;margin:10px 0 0}
+.items-guide{font-size:14px;line-height:1.45;color:#b4c5d0;margin:8px 0 14px}
+.purchase-reconciliation{border:1px solid #5b5e50;border-radius:12px;background:#28261c;padding:14px;margin:0 0 14px;color:#fff0d0;overflow-wrap:anywhere}
+.purchase-reconciliation.ok{background:#122d23;border-color:#36876b;color:#d6f9e9}
+.purchase-reconciliation> b{display:block;font-size:14px;letter-spacing:.04em;margin-bottom:10px}
+.purchase-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.purchase-kpis span{display:block;border-radius:9px;background:#ffffff0d;padding:8px;font-size:12px;line-height:1.35}
+.purchase-kpis strong{font-size:17px;display:inline-block;margin-top:4px}
+.purchase-reconciliation p{font-size:13px;margin:12px 0 0;line-height:1.5}
+.unconfirmed-amount{border-left:3px solid #e8b356;padding-left:10px}
+.purchase-reconciliation button{margin-top:10px;max-width:100%;min-height:43px}
+.purchase-item{border:1px solid #40545d;border-radius:14px;background:#1d282e;padding:14px 15px;margin:10px 0;color:#e4eff7}
+.purchase-item.needs-review{border-color:#946739;background:#28251f}
+.purchase-item-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;line-height:1.45}
+.purchase-item-head>b{font-size:15px;max-width:70%}
+.status-tag{flex:none;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:750}
+.status-tag.confirmed{background:#174a35;color:#a9eecb}
+.status-tag.needs{background:#785329;color:#fff0ce}
+.purchase-item-money{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 0;font-size:13px;flex-wrap:wrap}
+.item-discount{color:#a7e6c5;font-weight:750;font-size:13px;margin:0 0 8px}
+.item-net{padding:8px 0 0;border-top:1px solid #4a5d61;font-size:14px}
+.item-net strong{float:right}
+.item-warning{color:#f8d49a;font-size:12px;line-height:1.5}
+.purchase-item details{margin-top:9px;font-size:12px}
+.purchase-item summary{cursor:pointer;color:#bed9e9}
+.item-evidence{padding:6px 0 0;line-height:1.6;overflow-wrap:anywhere}
+.purchase-item-edit{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.purchase-item-edit label{display:grid;gap:4px;font-size:12px;font-weight:750}
+.purchase-item-edit label:first-child{grid-column:1/-1}
+.purchase-item-edit input{width:100%;max-width:100%;min-width:0;font-size:16px;padding:11px 9px;border-radius:8px}
+.purchase-item button.delete-item{min-height:38px;margin-top:10px}
+#addItemBtn{margin-top:12px}
+@media(max-width:480px){.purchase-kpis strong{font-size:16px}.purchase-item-edit{grid-template-columns:repeat(2,minmax(0,1fr))}.items-card .section-head{align-items:flex-start;flex-wrap:wrap}}
+
+/* R8.14: comparador temporal de precios guardados en esta sesión */
+.price-session{border:1px solid #608193;border-radius:15px;padding:14px;background:#132c38;color:#d6eaf6;margin:13px 0}
+.price-session h3{margin:0 0 8px;font-size:18px}
+.price-session p{font-size:13px;line-height:1.5}
+.price-session .table-scroll{max-width:100%;overflow-x:auto}
+.price-session table{width:100%;min-width:640px;border-collapse:collapse;font-size:13px}
+.price-session th,.price-session td{padding:9px;border-bottom:1px solid #416476;vertical-align:top}
+.saved-items-summary{padding:10px;background:#edf4f8;border-radius:9px;color:#234456;margin:10px 0}
+.saved-items-summary h3{margin:0 0 8px;font-size:16px}
+.saved-item{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid #d0dee8;font-size:13px}
+
+/* R8.15: sugerencias de precios OCR que requieren confirmación explícita */
+.item-proposal{margin:11px 0;padding:11px 12px;background:#173845;border:1px solid #4b91a0;border-radius:11px;color:#d8f2ff;font-size:13px;line-height:1.5}
+.item-proposal b{font-size:16px}
+.item-proposal .accept-proposal{margin-top:9px;min-height:45px;padding:10px 12px;width:100%;border-radius:9px;font-weight:750}
+.item-evidence strong{display:block;margin-top:7px}
+
+/* R8.16: conciliación trazable de importes y aviso de contradicciones OCR */
+.total-reconciled{padding:13px 14px;border-radius:11px;background:#12332b;border:1px solid #468d77;color:#d1ffe5;line-height:1.55;margin-top:12px}
+.total-reconciled b{color:#f3fff6}
+
+/* R8.17: mostrar los cinco datos esenciales por delante de los artículos */
+.essentials-card{padding:18px 16px;margin:16px 0 20px;background:#10202a;border:1px solid #355e73;border-radius:18px;color:#d7e9fa}
+.essentials-card h3{font-size:1.2rem;margin:0 0 8px}
+.essentials-card p{margin:0 0 14px;color:#a8bfd0}
+.essential-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.essential-cell{border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0;background:#182c34;border:1px solid #496375}
+.essential-cell.verified{border-color:#397b65;background:#122b24}
+.essential-cell.review{border-color:#957029;background:#352715}
+.essential-cell span{font-size:.82rem;color:#c8d5de}
+.essential-cell strong{font-size:1.15rem;overflow-wrap:anywhere}
+.essential-cell small{font-size:.72rem;line-height:1.4;color:#b4c8cb}
+@media(min-width:740px){.essential-grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
