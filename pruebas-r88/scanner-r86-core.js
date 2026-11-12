@@ -1,6 +1,6 @@
 (function(root){
 'use strict';
-/* Gasto360 R8.6: análisis conservador del ticket, sin servicios de IA externos. */
+/* Gasto360 R8.8: análisis conservador del ticket, sin servicios de IA externos. */
 const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
 const clean=s=>String(s||'').replace(/[|_*~]/g,' ').replace(/\s+/g,' ').trim();
 const RULES=[
@@ -68,62 +68,105 @@ function kind(text){
  return /GETNET|REDSYS|TPV|NUM\.?\s*AUT|NUM\.?\s*OPERACION|AUTORIZACION|OPERACION\s*:\s*\d+|PAGO CON TARJETA/.test(u)&&!(/DESCRIPCION\s+ARTICULOS|BASE IMPONIBLE|FACTURA SIMPLIFICADA/.test(u))?'justificante_tarjeta':'ticket';
 }
 function detectTotals(lines,type){
- const moneyLines=lines.map(l=>moneyVals(l));
  const ranked=[];
+ const hasTicketTotal=lines.some(l=>/\b(?:TOTAL|T0TAL)\s*(?:A PAGAR|COMPRA|PAGADO)?\b|\bIMP\.\s*:/i.test(norm(l)));
  lines.forEach((l,i)=>{
-  const u=norm(l).replace(/\bT[O0][T7][A4][L1I]\b/g,'TOTAL').replace(/\bT[O0]TA[L1I]\b/g,'TOTAL'),nums=moneyLines[i];
-  if(!nums.length&&!moneyLines[i+1]?.length)return;
-  const fiscal=/BASE IMPONIBLE|\bCUOTA\b|\bIVA\b|DESGLOSE|IMPUESTOS|RETENCION/.test(u);
-  const isRefund=/CAMBIO|DEVOLUC|ENTREGADO|RECIBIDO|PUNTOS|AHORRO|DESCUENTO|IMPORTE DEVUELTO/.test(u);
-  let marker=0;
-  if(/\bTOTAL\s*(A\s*PAGAR|COMPRA|PAGADO|€|EUR)?\b|\bIMPORTE\s+TOTAL\b|\bA\s+PAGAR\b/.test(u))marker=160;
-  else if(/\bTOTAL\b/.test(u))marker=135;
-  else if(/IMPORTE\s+PAGADO|PAGO\s+TARJETA|TARJETA BANCARIA/.test(u))marker=110;
-  else if(type==='justificante_tarjeta'&&/€|EUR|IMPORTE/.test(u))marker=90;
-  if(!marker||fiscal||isRefund) return;
-  const value=nums.length?nums[nums.length-1]:moneyLines[i+1][moneyLines[i+1].length-1];
-  ranked.push({value,score:marker+(i/Math.max(1,lines.length))*15-(nums.length>2?30:0)-(nums.length?0:12),line:i});
+  const u=norm(l).replace(/\bT[O0][T7][A4][L1I]\b/g,'TOTAL').replace(/\bLO[T7]AL\b/g,'TOTAL'),numbers=moneyVals(l);
+  const excluded=/OFERTA|PLUS|AHORRO|AHORRADO|DESCUENT|CUPON|PROMO|REDONDEO|ENTREGA|CAMBIO|DEVOLU|DEVUELTO|RECIBIDO|PUNTOS|BASE IMPONIBLE|\bIVA\b|\bCUOTA\b|PRECIO UNITARIO|IMPUESTO|RETENCION|DESGLOSE/.test(u);
+  if(excluded)return;
+  const following=moneyVals(lines[i+1]||'');
+  if(!numbers.length&&!following.length)return;
+  let weight=0,source='';
+  if(/\bIMP\.\s*[:=\-]\s*[\d]/.test(u)||/\bIMPORTE\s*(?:PAGADO|ABONADO|COBRADO|TOTAL)\b/.test(u)){weight=98;source='importe abonado'}
+  else if(/\bTOTAL\s+(?:A\s+PAGAR|PAGADO|COMPRA)\b/.test(u)){weight=96;source='total compra'}
+  else if(/\bA\s+PAGAR\b/.test(u)){weight=94;source='a pagar'}
+  else if(/^\s*TOTAL\b/.test(u)){weight=91;source='total del ticket'}
+  else if(/\bTARJETA BANCARIA\b|\bPAGO CON TARJETA\b/.test(u)){weight=87;source='pago'}
+  else if(type==='justificante_tarjeta'&&/\bIMP\.\s*:|\bEUR\b|\b€/.test(u)){weight=76;source='justificante'}
+  if(!weight)return;
+  // No atribuir el importe de otra línea a una etiqueta aislada salvo continuidad inmediata.
+  const v=numbers.length?numbers[numbers.length-1]:following[0];
+  if(!(v>0))return;
+  ranked.push({value:v,score:weight-(numbers.length?0:12)-(numbers.length>2?10:0),line:i,source});
  });
+ const tx=taxValues(lines);
+ const fiscal=tx.base!==null&&tx.tax>0?Number((tx.base+tx.tax).toFixed(2)):null;
+ if(fiscal!==null&&fiscal>0&&tx.validated){
+  const close=ranked.find(r=>Math.abs(r.value-fiscal)<=.03);
+  // Cuadre fiscal, no suma arbitraria de productos.
+  if(close)close.score+=12;
+  else ranked.push({value:fiscal,score:83,line:-1,source:'cuadre fiscal inferido'});
+ }
  ranked.sort((a,b)=>b.score-a.score);
- const alternative=[];
- for(const r of ranked)if(!alternative.some(x=>Math.abs(x-r.value)<.001))alternative.push(r.value);
- // No inventar el importe: si no aparece un total, exigir revisión.
- return {total:ranked.length?ranked[0].value:'',candidates:alternative.slice(0,8),labelFound:ranked.length>0};
+ const cand=[],seen=new Set();
+ for(const r of ranked){const k=r.value.toFixed(2);if(!seen.has(k)){seen.add(k);cand.push(r.value)}}
+ const selected=ranked[0];
+ return {total:selected?.value??'',candidates:cand.slice(0,8),labelFound:!!selected,
+  source:selected?.source||'',score:selected?.score||0,
+  inferred:selected?.source==='cuadre fiscal inferido',fiscal};
 }
 function taxValues(lines){
- let tax=null,base=null;
+ // Interpretación de la tabla fiscal de algunos supermercados:
+ // "IVA + PN = PP" seguido de "Suma 5,17 37,31 42,48".
  for(let i=0;i<lines.length;i++){
-  const u=norm(lines[i]),v=moneyVals(lines[i]);
-  if(/\b(CUOTA IVA|IVA\s+\d{1,2}\s*%|TOTAL IVA)\b/.test(u)&&v.length){
-   if(v.length>=2&&/IVA\s+\d{1,2}\s*%/.test(u)){tax=v[v.length-1];base=v[v.length-2];}
+  const u=norm(lines[i]);
+  if(!/\bSUMA\b|\bTOTAL IVA\b/.test(u))continue;
+  const preceding=norm(lines.slice(Math.max(0,i-14),i).join(' '));
+  if(!/\bIVA\b/.test(preceding)||!/\b(PN|BASE|IMPONIBLE|CUOTA|PP)\b/.test(preceding))continue;
+  const v=moneyVals(lines[i]);
+  if(v.length>=2&&v[0]>0&&v[1]>0){
+   // La columna de cuota de IVA precede a la base en este diseño de tabla.
+   const tax=Number(v[0].toFixed(2)),base=Number(v[1].toFixed(2));
+   const rows=lines.slice(Math.max(0,i-6),i).map(x=>moneyVals(x)).filter(v=>v.length>=3);
+   let validated=false;
+   if(rows.length>=2){
+    const totalTax=rows.reduce((n,v)=>n+v[0],0);
+    const totalBase=rows.reduce((n,v)=>n+v[1],0);
+    validated=Math.abs(totalTax-tax)<.04&&Math.abs(totalBase-base)<.04;
+   }
+   // Si no se leen suficientes filas, el encabezado es evidencia,
+   // pero no se inventará un total a partir del subtotal.
+   return {tax,base,validated,source:'tabla fiscal'};
+  }
+ }
+ let tax=0,base=null;
+ for(const line of lines){
+  const u=norm(line),v=moneyVals(line);
+  if(/\b(?:CUOTA IVA|IVA\s+\d{1,2}\s*%|TOTAL IVA)\b/.test(u)&&v.length){
+   if(v.length>=2&&/\bIVA\s+\d{1,2}\s*%/.test(u)){tax=v[v.length-1];base=v[v.length-2]}
    else tax=v[v.length-1];
   }
  }
- return {tax:tax===null?0:tax,base};
+ return {tax,base,validated:false,source:tax>0?'cuota suelta':''};
 }
 function items(lines){
- const begin=lines.findIndex(l=>/DESCRIPCION|DESCRIPCION\s+ARTICULO|ARTICULOS|DESCRIPCIO\b/.test(norm(l)));
+ const begin=lines.findIndex(l=>/DESCRIPCION|ARTICULOS|PRODUCTOS|DESCRIPCIO\b/.test(norm(l)));
  const start=begin>=0?begin+1:Math.min(3,lines.length);
- const found=[];
- for(let i=start;i<lines.length&&i<start+55;i++){
-  const l=clean(lines[i]),u=norm(l);
-  if(/^(TOTAL|SUBTOTAL|BASE|IVA\b|CUOTA|A PAGAR|TARJETA|EFECTIVO|CAMBIO|DEVOLU)/.test(u))break;
-  if(/FECHA|FACTURA|NIF|TELEF|CIF|TICKET|GRACIAS/.test(u))continue;
-  const amounts=moneyVals(l);if(!amounts.length)continue;
-  const m=l.match(/(?:\d{1,3}(?:\.\d{3})+,\d{2}|\d{1,6}[.,]\d{2})\s*(?:€|EUR)?\s*$/i);
+ const out=[];
+ for(let i=start;i<lines.length&&i<start+75;i++){
+  const raw=clean(lines[i]),u=norm(raw);
+  if(/^(?:TOTAL|LOTAL|T0TAL|SUBTOTAL|ENTREGA|VENTA CONTADO|RECIBO PARA EL CLIENTE|BASE|IVA\b|CUOTA|IMP\.\s*:|SUMA|A PAGAR)/.test(u))break;
+  if(/^\s*\d+[.,]\d+\s*(?:KG|G|GR|L)\s*[X×*]/.test(u))continue;
+  if(/\/KG\b|EUR\/K|PROMO|LIDL PLUS|CUPON|DESCUENT|OFERTA|AHORRO|ENTREGA|FECHA|FACTURA|NIF|TELEF|CIF|TICKET|GRACIAS|PAGO\b/.test(u))continue;
+  const m=raw.match(/\s+(\d{1,3}(?:\.\d{3})+,\d{2}|\d{1,5}[.,]\d{2})\s*(?:EUR|€|[ABC])?\s*$/i);
   if(!m)continue;
-  let name=clean(l.slice(0,m.index)).replace(/^\d{1,3}\s*(?:x|X)?\s+/,'');
-  if(name.length<3||!/[\p{L}]/u.test(name)||/^\s*(IVA|BASE|CUOTA|IMPORTE|TOTAL|FECHA|PAGO)/i.test(name))continue;
-  found.push({name,amounts,price:amounts[amounts.length-1]});
+  const amount=moneyVals(m[1])[0],name=clean(raw.slice(0,m.index)).replace(/^\s*\d{1,2}\s*(?:X|×)?\s+/i,'');
+  if(!(amount>0)||name.length<3||!/\p{L}/u.test(name)||/^\d+(?:[,.]\d+)?\s*(?:KG|G|L)\b/.test(norm(name)))continue;
+  out.push({name,amounts:[amount],price:amount});
  }
- return found.slice(0,40);
+ return out.slice(0,40);
 }
 function paymentFrom(text){
  const u=norm(text);
- if(/VISA|MASTER\s*CARD|MAESTRO|TARJETA|PAGO\s+TARJETA|CONTACTLESS|TPV|GETNET|REDSYS|DAT[AÁ]FONO/.test(u))return 'Tarjeta';
+ const explicitCard=/\bVISA\b|MASTER\s*CARD|\bMAESTRO\b|\bTARJETA\b|CONTACTLESS|\bTPV\b|\bGETNET\b|\bREDSYS\b|\bDATAFONO\b/.test(u);
+ const maskedCard=/\b\d{4,8}\s*[*X•]{4,}\s*\d{2}(?:\s*\d{2})?\b/.test(u);
+ const bankSlip=/\bVENTA CONTADO\b/.test(u)&&/\bRECIBO PARA EL CLIENTE\b/.test(u)&&/\bIMP\.\s*:\s*\d/.test(u);
+ const cash=/\bEFECTIVO\b|\bMETALICO\b|\bCASH\b|ENTREGA EFECTIVO/.test(u);
  if(/\bBIZUM\b/.test(u))return 'Bizum';
- if(/EFECTIVO|CONTADO|EN METALICO/.test(u))return 'Efectivo';
- return 'Otro';
+ if((explicitCard||maskedCard||bankSlip)&&!cash)return 'Tarjeta';
+ if(cash&&!(explicitCard||maskedCard||bankSlip))return 'Efectivo';
+ if(cash&&(maskedCard||bankSlip))return 'Otro'; // pagos mixtos: revisión humana
+ return 'Otro'; // "VENTA CONTADO" por sí sola NO significa efectivo.
 }
 function taxId(text){
  const u=norm(text);
@@ -144,8 +187,8 @@ function extract(text,ocrConf,known=[]){
  const confidence={
   merchant:merchant?Math.round((mc[0]?.score||65)*quality):0,
   date:date?Math.round(94*quality):0,
-  amount:tot.labelFound?Math.round(95*quality):0,
-  tax:tx.tax>0?Math.round(70*quality):0,
+  amount:tot.labelFound?Math.round(Math.min(98,Math.max(45,tot.score))*quality):0,
+  tax:tx.tax>0?Math.round((tx.validated?95:65)*quality):0,
   concept:it.length?Math.round(85*quality):(type==='justificante_tarjeta'?Math.round(72*quality):35)
  };
  const overall=Math.round((confidence.merchant+confidence.date+confidence.amount+confidence.concept+Math.max(0,Number(ocrConf||0)))/5);
@@ -154,11 +197,13 @@ function extract(text,ocrConf,known=[]){
  if(mc.filter(x=>x.verified).length>1)flags.push('Se detectan varios comercios: comprueba que el recorte contiene un solo ticket.');
  if(!date)flags.push('Fecha no verificada: introduce la fecha del ticket.');
  if(tot.total==='')flags.push('Importe total no verificado: introdúcelo manualmente.');
+ if(tot.inferred)flags.push('Total inferido del desglose fiscal; verifica el importe real del pago.');
  if(!merchant)flags.push('Comercio no verificado.');
+ if(paymentFrom(text)==='Otro')flags.push('No se ha confirmado la forma de pago.');
  if(type==='ticket'&&!it.length)flags.push('No se han reconocido productos individuales.');
  return {merchant,date,amount:tot.total,tax:tx.tax,base:tx.base,concept,category,payment:paymentFrom(text),
   taxId:taxId(text),invoiceNo:invoice(text),items:it,merchantCandidates:mc,amountCandidates:tot.candidates,
-  confidence,overall,lines,documentType:type,flags};
+  confidence,overall,lines,documentType:type,flags,totalSource:tot.source,fiscalValidated:tx.validated};
 }
 function scoreQuad(p,w,h,sample){
  if(!p||p.length!==4)return 0;
