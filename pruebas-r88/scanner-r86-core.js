@@ -82,7 +82,7 @@ function detectTotals(lines,type){
   else if(/\bA\s+PAGAR\b/.test(u)){weight=94;source='a pagar'}
   else if(/^\s*TOTAL\b/.test(u)){weight=91;source='total del ticket'}
   else if(/\bTARJETA BANCARIA\b|\bPAGO CON TARJETA\b/.test(u)){weight=87;source='pago'}
-  else if(type==='justificante_tarjeta'&&/\bIMP\.\s*:|\bEUR\b|\b€/.test(u)){weight=76;source='justificante'}
+  else if(type==='justificante_tarjeta'&&/\bIMP\.\s*:|\bEUR\b|€/.test(u)){weight=76;source='justificante'}
   if(!weight)return;
   // No atribuir el importe de otra línea a una etiqueta aislada salvo continuidad inmediata.
   const v=numbers.length?numbers[numbers.length-1]:following[0];
