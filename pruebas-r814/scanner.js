@@ -497,16 +497,21 @@ function updateReconciliation(){
 function renderVatDetails(){
  const data=lastExtraction?.desglose?.fiscal,host=$("taxBreakdownRows"),flag=$("taxBreakdownState"),warn=$("taxBreakdownWarning");
  if(!data){host.textContent="Sin desglose fiscal leído.";flag.textContent="Pendiente";warn.textContent="";return}
- flag.textContent=data.status==="validado"?"Cuadrado con el total":"No verificado";
- flag.className="breakdown-status "+(data.status==='validado'?'status-ok':'status-warn');
+ const currentTotal=Number($("ocrAmount").value||0);
+ const currentTax=$("ocrTax").value.trim()===""?null:Number($("ocrTax").value);
+ const liveValid=data.status==="validado"&&currentTax!==null&&
+  Math.abs(currentTotal-data.gross)<=.025&&Math.abs(currentTax-data.tax)<=.025;
+ flag.textContent=liveValid?"Cuadrado con el total":data.status==="validado"?"Cifras modificadas: revisar":"No verificado";
+ flag.className="breakdown-status "+(liveValid?'status-ok':'status-warn');
  const rows=(data.rows||[]).map(x=>'<tr><td>'+x.rate+' %</td><td>'+money(x.base)+'</td><td>'+money(x.vat)+'</td><td>'+money(x.gross)+'</td><td>'+(x.review?'Comprobar':'OCR')+'</td></tr>').join('');
  host.innerHTML=rows?'<div class="table-scroll"><table><thead><tr><th>Tipo</th><th>Base</th><th>IVA</th><th>Total</th><th>Origen</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
  (data.status==='validado'?'<p><strong>Base: '+money(data.base)+' · IVA: '+money(data.tax)+' · Total: '+money(data.gross)+'</strong></p>':''):'Sin tabla de IVA fiable.';
- warn.textContent=(data.warnings||[]).join(' ');
+ warn.textContent=(data.warnings||[]).join(' ')+(data.status==='validado'&&!liveValid?' El total o el IVA editado ya no coincide con la tabla del ticket.':'');
 }
 function escapeHtml(s){return String(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
 function renderFiscalCheck(){const f=lastExtraction||{},total=Number($("ocrAmount").value||0),tax=Number($("ocrTax").value||0),base=f.base;const box=$("fiscalCheck");if(base!==null&&base!==undefined&&tax>0&&total>0){const diff=Math.abs(base+tax-total);box.hidden=false;box.className="fiscal-check"+(diff<=.03?"":" warn");box.textContent=diff<=.03?`✓ Cuadre fiscal: ${money(base)} base + ${money(tax)} IVA = ${money(total)}`:`⚠ Revisa importes: base ${money(base)} + IVA ${money(tax)} no coincide con total ${money(total)}`}else box.hidden=true}
-$("ocrAmount").oninput=()=>{renderFiscalCheck();updateReconciliation()};$("ocrTax").oninput=renderFiscalCheck;
+$("ocrAmount").oninput=()=>{renderFiscalCheck();updateReconciliation();renderVatDetails()};
+ $("ocrTax").oninput=()=>{renderFiscalCheck();renderVatDetails()};
 $("repeatOcrBtn").onclick=async()=>{setStep(3);await runOCR();renderFinalReview();setStep(4)};
 $("editItemsBtn").onclick=()=>{editingItems=!editingItems;renderItems()};
 $("addItemBtn").onclick=()=>{
@@ -538,7 +543,10 @@ function buildPayload(){
    const fields={merchant:$("ocrMerchant").value.trim(),date:$("ocrDate").value,amount:Number($("ocrAmount").value),
     tax:$("ocrTax").value.trim()===""?null:Number($("ocrTax").value),
     concept:$("ocrConcept").value.trim(),category:$("ocrCategory").value,payment:$("ocrPayment").value,
-    items,desgloseEstado:desglose?.reconciliation?.status||"pendiente",ivaEstado:desglose?.fiscal?.status||"pendiente"};
+    items,desgloseEstado:desglose?.reconciliation?.status||"pendiente",
+    ivaEstado:desglose?.fiscal?.status==="validado"&&
+      Math.abs(desglose.fiscal.gross-Number($("ocrAmount").value||0))<=.025&&
+      Math.abs(desglose.fiscal.tax-Number($("ocrTax").value||0))<=.025?"validado":"pendiente"};
   const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.14",ocrDiagnostics,cropConfidence}};
   return {fields,scan,submissionId:scanSubmissionId}
 }
