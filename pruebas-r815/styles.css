@@ -120,3 +120,9 @@ main{max-width:1160px;margin:auto;padding:20px}.card,.login-card{background:#fff
 .saved-items-summary{padding:10px;background:#edf4f8;border-radius:9px;color:#234456;margin:10px 0}
 .saved-items-summary h3{margin:0 0 8px;font-size:16px}
 .saved-item{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid #d0dee8;font-size:13px}
+
+/* R8.15: sugerencias de precios OCR que requieren confirmación explícita */
+.item-proposal{margin:11px 0;padding:11px 12px;background:#173845;border:1px solid #4b91a0;border-radius:11px;color:#d8f2ff;font-size:13px;line-height:1.5}
+.item-proposal b{font-size:16px}
+.item-proposal .accept-proposal{margin-top:9px;min-height:45px;padding:10px 12px;width:100%;border-radius:9px;font-weight:750}
+.item-evidence strong{display:block;margin-top:7px}
