@@ -72,8 +72,9 @@ async function autoEdges(){
         paperMask=new cv.Mat(small.height,small.width,cv.CV_8UC1);
         for(let i=0,j=0;i<cropSample.data.length;i+=4,j++){
           const r=cropSample.data[i],g=cropSample.data[i+1],b=cropSample.data[i+2];
-          const lum=.299*r+.587*g+.114*b;
-          paperMask.data[j]=(lum>137&&(Math.max(r,g,b)-Math.min(r,g,b))<65)?255:0;
+          const value=Math.max(r,g,b),minValue=Math.min(r,g,b);
+          const saturation=value?255*(value-minValue)/value:0;
+          paperMask.data[j]=(value>122&&saturation<74)?255:0;
         }
         kernel=cv.getStructuringElement(cv.MORPH_RECT,new cv.Size(5,7));
         cv.morphologyEx(paperMask,paperMask,cv.MORPH_CLOSE,kernel);
