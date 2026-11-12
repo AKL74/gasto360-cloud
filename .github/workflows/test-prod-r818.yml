@@ -1,0 +1,36 @@
+name: Gasto360 R8.18 - Integracion real
+on:
+  push:
+    paths:
+      - 'index.html'
+      - 'scanner.js'
+      - 'styles.css'
+      - 'app.js'
+      - 'sw.js'
+      - 'scanner-r86-core.js'
+      - 'ocr-r87.js'
+      - 'desglose-r814.js'
+      - 'rescate-r815.js'
+      - 'interpretacion-r816.js'
+      - 'esenciales-r817.js'
+      - 'revision-r818.js'
+      - 'tests-r818-production.cjs'
+      - '.github/workflows/test-prod-r818.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Sintaxis de todos los modulos
+        run: |
+          for file in app.js scanner.js sw.js scanner-r86-core.js ocr-r87.js desglose-r814.js rescate-r815.js interpretacion-r816.js esenciales-r817.js revision-r818.js; do node --check "$file"; done
+      - name: Pruebas de lectura fiscal R8.18
+        run: node pruebas-r818/tests-r818.cjs
+      - name: Prueba de integracion real
+        run: node tests-r818-production.cjs
