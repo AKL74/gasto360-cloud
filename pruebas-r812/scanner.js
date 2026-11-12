@@ -94,8 +94,49 @@ async function autoEdges(){
       }catch(e){console.warn("Segmentación de papel no concluyente",e)}
       finally{[paperMask,kernel,paperHierarchy].forEach(x=>{try{x&&x.delete()}catch{}});try{paperContours&&paperContours.delete()}catch{}}
     }
+    // R8.12: detección alternativa del papel (fondo oscuro, silla o mesa).
+    // Propuestas de imagen completa SIN agrandar artificialmente cada letra.
+    // Se premia una tira vertical clara cerca del centro, frente a otros papeles laterales.
+    {
+      let mask=null,kclose=null,kopen=null,contoursPaper=null,hierPaper=null;
+      try{
+        mask=new cv.Mat(small.height,small.width,cv.CV_8UC1);
+        kclose=cv.getStructuringElement(cv.MORPH_RECT,new cv.Size(5,7));
+        kopen=cv.getStructuringElement(cv.MORPH_RECT,new cv.Size(3,3));
+        const cw=small.width,ch=small.height,allPixels=cw*ch,im=cropSample.data;
+        for(const threshold of [170,190,210]){
+          for(let i=0,j=0;i<im.length;i+=4,j++){
+            const r=im[i],g=im[i+1],b=im[i+2];
+            const hi=Math.max(r,g,b),lo=Math.min(r,g,b);
+            const saturation=hi?255*(hi-lo)/hi:0;
+            mask.data[j]=(hi>=threshold&&saturation<85)?255:0;
+          }
+          cv.morphologyEx(mask,mask,cv.MORPH_CLOSE,kclose);
+          cv.morphologyEx(mask,mask,cv.MORPH_OPEN,kopen);
+          contoursPaper=new cv.MatVector();hierPaper=new cv.Mat();
+          cv.findContours(mask,contoursPaper,hierPaper,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_SIMPLE);
+          for(let i=0;i<contoursPaper.size();i++){
+            const c=contoursPaper.get(i),r=cv.boundingRect(c);
+            const shapeArea=Math.abs(cv.contourArea(c));
+            const ratio=r.height/Math.max(1,r.width),frameShare=shapeArea/allPixels,fill=shapeArea/Math.max(1,r.width*r.height);
+            if(r.width>cw*.065&&r.height>ch*.20&&ratio>1.55&&ratio<9&&frameShare>.014&&frameShare<.55&&fill>.37){
+              const center=1-Math.min(1,Math.abs(r.x+r.width*.5-cw*.5)/(cw*.5));
+              const tall=Math.min(1,Math.max(0,(ratio-1.5)/2.0));
+              const score=.63+.10*tall+.12*center+.10*Math.min(1,frameShare*6);
+              const rx=src.width/cw,ry=src.height/ch;
+              const q=[{x:r.x*rx,y:r.y*ry},{x:(r.x+r.width)*rx,y:r.y*ry},
+                       {x:(r.x+r.width)*rx,y:(r.y+r.height)*ry},{x:r.x*rx,y:(r.y+r.height)*ry}];
+              candidates.push({q,score:Math.min(.94,score),method:"papel"});
+            }
+            c.delete();
+          }
+          contoursPaper.delete();contoursPaper=null;hierPaper.delete();hierPaper=null;
+        }
+      }catch(e){console.warn("R8.12: segmentación alternativa no disponible",e)}
+      finally{[mask,kclose,kopen,contoursPaper,hierPaper].forEach(m=>{try{m&&m.delete()}catch{}})}
+    }
     candidates.sort((a,b)=>b.score-a.score);
-    if(candidates.length&&candidates[0].score>=.56){pts=candidates[0].q;cropConfidence=candidates[0].score;drawOverlay();setCropBanner(cropConfidence>.78?"Posible ticket aislado. Comprueba los bordes.":"Comprueba que los 4 puntos rodean el ticket y no la carpeta.",cropConfidence>.78?"ok":"warn")}
+    if(candidates.length&&candidates[0].score>=.56){pts=candidates[0].q;cropConfidence=candidates[0].score;drawOverlay();setCropBanner(candidates[0].method==="papel"?"Ticket propuesto por contraste de papel. Comprueba las cuatro esquinas antes de continuar.":cropConfidence>.78?"Posible ticket aislado. Comprueba los bordes.":"Comprueba que los 4 puntos rodean el ticket y no la carpeta.",cropConfidence>.78?"ok":"warn")}
     else{defaultPts();setCropBanner("No encontramos los 4 bordes con suficiente seguridad. Ajusta los puntos manualmente.","warn")}
   }catch(e){console.error(e);defaultPts();setCropBanner("La detección automática no fue concluyente. Ajusta los 4 puntos.","warn")}
   finally{[rgba,gray,blur,canny,thr,hierarchy].forEach(x=>{try{x&&x.delete()}catch{}});try{contours&&contours.delete()}catch{}}
@@ -256,6 +297,7 @@ $("switchCameraBtn").onclick=()=>switchCamera();
 $("galleryFile").addEventListener("click",e=>{e.currentTarget.value=""});
 $("galleryFile").addEventListener("change",e=>loadFile(e.currentTarget.files&&e.currentTarget.files[0]));
 $("retakeBtn").onclick=reset;$("autoEdges").onclick=autoEdges;$("acceptCrop").onclick=()=>{
+  if(pts.length===4){const p=sortPts(pts),wid=Math.max(Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y),Math.hypot(p[2].x-p[3].x,p[2].y-p[3].y));if(wid<400)window.gasto360Cloud.toast("El ticket tiene solo "+Math.round(wid)+" píxeles de ancho. Una foto más cercana ayudará a leer las letras.","warn",5500);}
   const area=pts.length===4?polyArea(sortPts(pts))/Math.max(1,src.width*src.height):1;
   if(cropConfidence<.5&&area>.65){
     setCropBanner("El recuadro rodea casi toda la fotografía, no el ticket. Ajusta las cuatro esquinas al papel antes de continuar.","warn");
@@ -328,8 +370,8 @@ async function recognizeCanvas(c,label,base,span){
 }
 async function runOCR(){
   updateProgress(27,"Reconociendo texto…","Lectura en varias zonas y tratamientos de imagen");
-  if(!window.Gasto360OCRR811)throw new Error("No se cargó el motor OCR R8.11. Recarga la página.");
-  const r=await window.Gasto360OCRR811.run(dst,(raw,conf,known)=>window.Gasto360ScanR86.extract(raw,conf,known),knownMerchants,updateProgress);
+  if(!window.Gasto360OCRR812)throw new Error("No se cargó el motor OCR R8.12. Recarga la página.");
+  const r=await window.Gasto360OCRR812.run(dst,(raw,conf,known)=>window.Gasto360ScanR86.extract(raw,conf,known),knownMerchants,updateProgress);
   ocrText=r.text||"";ocrConfidence=r.confidence;ocrDiagnostics=r.diagnostics;
   lastExtraction=r.fields;lastFields=r.fields;
   await sleep(120);
@@ -367,7 +409,7 @@ $("editItemsBtn").onclick=()=>{const txt=(lastExtraction?.items||[]).map(x=>x.na
 
 function buildPayload(){
   const fields={merchant:$("ocrMerchant").value.trim(),date:$("ocrDate").value,amount:Number($("ocrAmount").value),tax:Number($("ocrTax").value||0),concept:$("ocrConcept").value.trim(),category:$("ocrCategory").value,payment:$("ocrPayment").value};
-  const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.11",ocrDiagnostics,cropConfidence}};
+  const scan={original:file,corrected:correctedBlob,text:ocrText,confidence:ocrConfidence,fields:{...lastExtraction,...fields,scannerVersion:"R8.12",ocrDiagnostics,cropConfidence}};
   return {fields,scan,submissionId:scanSubmissionId}
 }
 async function doSave(force=false){
@@ -388,11 +430,11 @@ window.addEventListener("pagehide",()=>stopCamera());
 window.addEventListener("beforeunload",()=>stopCamera());
 $("downloadOcrDiagnostic").onclick=()=>{
   if(!ocrDiagnostics){window.gasto360Cloud.toast("Todavía no se ha ejecutado el reconocimiento.","warn");return}
-  const report={version:"R8.11",createdAt:new Date().toISOString(),diagnostics:ocrDiagnostics,fields:lastExtraction,
+  const report={version:"R8.12",createdAt:new Date().toISOString(),diagnostics:ocrDiagnostics,fields:lastExtraction,
     note:"Informe local: contiene texto reconocido del ticket. Revisa sus datos personales antes de compartirlo."};
   const blob=new Blob([JSON.stringify(report,null,2)],{type:"application/json"});
   const url=URL.createObjectURL(blob),link=document.createElement("a");
-  link.href=url;link.download="diagnostico_ocr_gasto360_r811_"+new Date().toISOString().slice(0,10)+".json";
+  link.href=url;link.download="diagnostico_ocr_gasto360_r812_"+new Date().toISOString().slice(0,10)+".json";
   document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);
 };
 window.gasto360Scanner={reset,stopCamera,startCamera};
