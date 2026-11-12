@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-/* Gasto360 R8.14: motor OCR restaurado exactamente de R8.7; fusión de campos corregida. Sin APIs ni envíos de tickets. */
+/* Gasto360 R8.15: motor OCR restaurado exactamente de R8.7; fusión de campos corregida. Sin APIs ni envíos de tickets. */
 const clamp=(n,a,b)=>Math.max(a,Math.min(n,b));
 function makeCanvas(image,mode='original',section='full'){
   const x=0,y=section==='cabecera'?0:section==='pie'?Math.floor(image.height*.45):0;
@@ -106,7 +106,7 @@ async function recognize(worker,image,label,psm,onProgress,progressStart,progres
 }
 async function run(image,extract,known,onProgress){
  if(!image?.width||!image?.height)throw Error('El recorte está vacío.');
- const attempts=[],diagnostics={version:'R8.14',width:image.width,height:image.height,passes:[],issues:[]};
+ const attempts=[],diagnostics={version:'R8.15',width:image.width,height:image.height,passes:[],issues:[]};
  let activeProgress=0,worker;
  function progress(v,t,d){activeProgress=Math.max(activeProgress,v);onProgress?.(activeProgress,t,d)}
  try{
@@ -157,5 +157,5 @@ async function run(image,extract,known,onProgress){
   return {fields:merged.fields,text:all,confidence:Math.round(Math.max(...attempts.map(r=>r.confidence))),diagnostics};
  }finally{if(worker){try{await worker.terminate()}catch{}}}
 }
-window.Gasto360OCRR814={makeCanvas,run,combine};
+window.Gasto360OCRR815={makeCanvas,run,combine};
 })();
