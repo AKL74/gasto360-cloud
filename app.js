@@ -402,7 +402,7 @@ async function saveScannedExpense(payload,force=false){
     date:fields.date,merchant:String(fields.merchant||"").trim(),concept:String(fields.concept||"").trim(),
     category:fields.category||"Otros",amount:Number(fields.amount),tax:Number(fields.tax||0),
     payment_method:fields.payment||"Otro",scope:"personal",
-    notes:fields.notes||"Registrado desde Scanner Intelligence R8.4.2"
+    notes:fields.notes||"Registrado desde Scanner Inteligente R8.18"
   };
   if(!expense.date||!expense.merchant||!Number.isFinite(expense.amount))return {ok:false,error:"Faltan fecha, empresa o importe"};
   if(!force){
