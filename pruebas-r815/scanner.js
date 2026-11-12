@@ -396,6 +396,16 @@ async function runOCR(){
   const analysis=window.Gasto360DesgloseR815.analyze(r.diagnostics?.passes||[],r.fields);
   r.fields.items=analysis.items;
   r.fields.desglose=analysis;
+  // Una cifra identificada y cuadrada como descuento no debe sugerirse como TOTAL.
+  const discount=Number(analysis.discountAudit?.stated||0),amount=Number(r.fields.amount||0);
+  if(discount>0&&amount>0&&Math.abs(discount-amount)>.025){
+    const remaining=(r.fields.amountCandidates||[]).filter(v=>Math.abs(Number(v)-discount)>.025);
+    if(remaining.length){
+      r.fields.amountCandidates=remaining;
+      if(remaining.every(v=>Math.abs(Number(v)-amount)<.025))
+        r.fields.flags=(r.fields.flags||[]).filter(v=>!v.includes("Hay varios importes reconocidos"));
+    }
+  }
   if(analysis.items.length){
     r.fields.flags=(r.fields.flags||[]).filter(x=>!x.includes("No se han reconocido productos individuales."));
   }
