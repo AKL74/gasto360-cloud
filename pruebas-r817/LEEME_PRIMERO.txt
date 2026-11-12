@@ -1,57 +1,37 @@
-GASTO360 R8.16 — RESCATE DEL DESGLOSE INTELIGENTE
-====================================================
-VERSIÓN DE PRUEBAS: no modifica Gasto360 habitual, HUB ni Supabase.
-El original y el texto OCR se conservan en la pestaña, sin subir datos.
+GASTO360 R8.17 - EXTRACCION PRIORITARIA
+=========================================
+VERSIÓN DE PRUEBAS. No modifica Gasto360 principal, HUB ni Supabase.
 
-SAMSUNG / INTERNET:
-https://akl74.github.io/gasto360-cloud/pruebas-r816/?v=815
+ANDROID
+https://akl74.github.io/gasto360-cloud/pruebas-r817/?v=817
 
-WINDOWS:
-Descomprime ZIP de la rama rescate-desglose-r816-20261112.
-Abre pruebas-r816 e inicia INICIAR_GASTO360_R816_PRUEBAS.bat
-(requiere Python 3). Puerto local http://127.0.0.1:18916/.
+WINDOWS
+Abrir INICIAR_GASTO360_R817_PRUEBAS.bat desde la carpeta pruebas-r817.
+Necesita Python 3; usa solo 127.0.0.1:18917.
 
-QUÉ SE HA CORREGIDO DESDE R8.14
-1. El analizador usa tanto "original" como "contraste" y recupera
-   artículos aunque el precio de una línea esté defectuoso.
-2. Lee también la cabecera dispersa para proponer precios, no para
-   rellenarlos automáticamente. Las propuestas requieren que el
-   usuario compruebe el precio en el ticket y confirme expresamente.
-3. Recupera promociones alineadas con artículos SOLO cuando su suma
-   coincide con el descuento total leído, sin reutilizar cifras.
-   La asociación sigue marcada PARA REVISAR.
-4. Reconoce la tabla fiscal con cabeceras OCR alteradas (TVA%)
-   y etiquetas como 4K / Co 21%, validando aritméticamente la suma
-   con el total pagado. Los tipos alterados necesitan revisión.
-5. Descuentos de artículos con precio desconocido no se descuentan
-   incorrectamente del neto de productos con precio verificado.
-6. El subtotal de descuentos no se muestra como candidato de TOTAL.
-7. Mantiene exactamente los controles de fotografía de R8.13.
+DATOS QUE SE LEEN PRIMERO
+1. EMPRESA
+2. FECHA
+3. TOTAL realmente pagado (no confundir con IVA o efectivo entregado)
+4. IVA y base imponible
+5. FORMA DE PAGO
+Después se intenta interpretar los artículos.
 
-PRUEBA CON EL MISMO TICKET LIDL
-- Recortar solo el ticket y pulsar Continuar.
-- Verificar 11 líneas de artículos (con algunos precios pendientes).
-- Verificar cuatro promociones por 6,93 € (revisar cada asociación).
-- Verificar base imponible 37,31 € e IVA 5,17 €.
-- No aceptar como correcto un precio propuesto solamente por cercanía.
-  El OCR del ticket disponible propone 2,99 € para los taquitos,
-  pero esa lectura es dudosa: CONFIRMAR CON LA FOTOGRAFÍA.
-- Editar cada artículo o confirmar propuesta solo después de verla.
-- El estado permanece PENDIENTE si hay precios sin verificar.
-- Descargar diagnóstico JSON si las pruebas no coinciden.
+REGLAS IMPORTANTES
+- El IVA puede tener una sola fila (21%) o varias (4%, 10%, 21%).
+- El resumen fiscal con BASE + CUOTA permite comprobar la suma.
+- El importe de tarjeta o la entrega de efectivo NO es un producto.
+- Si la lectura no permite verificar el total, no se inventa: se pide revisión.
+- Una línea fiscal "TOTAL base cuota" no representa el importe pagado.
+- Las dudas en productos NO invalidan los datos esenciales correctos.
+- El diagnóstico OCR nunca se comparte automáticamente.
 
-PRIVACIDAD
-No se publicó el diagnóstico del usuario en el repositorio. Las
-pruebas de regresión usan datos FICTICIOS y no contienen fotografías,
-números de tarjeta, direcciones ni nombres de usuario.
-Los resultados de sesión NO se conservan al cerrar/recargar.
-Los JSON exportados pueden contener datos privados; revisarlos antes
-de compartir.
+RESULTADOS ESPERADOS DE PRUEBAS REALES (NO INCLUIDAS EN EL CÓDIGO)
+Mercadona Rota 01/10/2026:
+Total 1,65 EUR; base 1,36 EUR; IVA 0,29 EUR; efectivo.
+Mercadona Jerez 26/09/2026:
+Total 42,08 EUR; base 40,27 EUR; IVA 1,81 EUR; tarjeta.
 
-
-NUEVOS CONTROLES R8.16
-- Etiqueta de pago no se acepta como producto.
-- Productos al peso: se recupera el subtotal de la linea siguiente.
-- Total corregido solo con IVA, suma de productos e importe abonado consistentes.
-- Ejemplo Mercadona: 16 articulos, 42,08 EUR, IVA 1,81 EUR, base 40,27 EUR.
-- La pera debe revisarse: OCR de 2,88 EUR contradice el calculo 2,33 EUR.
+SEGURIDAD
+Las imágenes y JSON reales NO se incluyen en el repositorio.
+Guardar resultado local conserva la sesión, NO sube el gasto a tu cuenta.
