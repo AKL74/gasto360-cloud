@@ -1,0 +1,37 @@
+GASTO360 R8.12 — PRUEBA CON FOTOGRAFÍA ORIGINAL REAL
+===================================================
+Esta prueba NO modifica Gasto360 habitual, HUB ni Supabase.
+
+TELÉFONO (HTTPS):
+https://akl74.github.io/gasto360-cloud/pruebas-r812/?v=812
+
+ORDEN DE LA PRUEBA
+1. Selecciona DESDE LA GALERÍA la fotografía ORIGINAL del ticket
+   LIDL tomada sobre fondo NEGRO y junto a un cuaderno rojo/azul.
+   NO uses la antigua fotografía tomada sobre una silla, porque
+   el ticket ocupa muy pocos píxeles y está lleno de granulado.
+2. Comprueba que las cuatro esquinas rodean el ticket. El detector
+   alternativo busca papel claro y prefiere documentos verticales
+   próximos al centro; si falla, ajusta las esquinas manualmente.
+3. Pulsa Continuar. Comprueba EMPRESA, FECHA, TOTAL y PAGO.
+4. Si falla, descarga el diagnóstico OCR (JSON) y revisa cualquier
+   dato personal antes de compartirlo.
+
+HECHOS DE LA PRUEBA CON LA FOTO ORIGINAL:
+- Archivo recibido: JPG 1535x2047 px; ticket aprox. 555 px ancho.
+- Un recorte local del ticket leído con Tesseract dio LIDL,
+  fecha 04/11/2026, IMP.: 42,48 EUR, forma de pago por tarjeta
+  y varias líneas de artículos. Alguna cantidad sigue equivocada.
+- ESA PRUEBA NO DEMUESTRA QUE SAMSUNG INTERNET YA FUNCIONE:
+  la captura, recorte y Tesseract de Android deben comprobarse.
+- No incluir fotografías originales del usuario en GitHub.
+
+WINDOWS:
+Descomprime el ZIP, abre pruebas-r812 y ejecuta
+INICIAR_GASTO360_R812_PRUEBAS.bat (requiere Python 3).
+Servidor local http://127.0.0.1:18912/.
+
+LIMITACIÓN:
+Una imagen extremadamente pequeña, borrosa o con demasiado ruido
+no puede recuperarse inventando píxeles. Si la foto es así, es
+mejor repetirla acercando la cámara, sin cortar los bordes.
