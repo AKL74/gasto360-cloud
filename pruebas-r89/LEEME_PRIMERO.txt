@@ -1,0 +1,46 @@
+GASTO360 R8.9 — ESCÁNER CON REPARACIÓN DE FALLOS
+=================================================
+VERSION DE PRUEBAS. Los datos de Gasto360 y del HUB NO cambian.
+No inicia sesión en Google ni escribe en Supabase.
+
+ACCESO MOVIL HTTPS:
+https://akl74.github.io/gasto360-cloud/pruebas-r89/?v=89
+
+WINDOWS:
+1. Descarga el ZIP de la rama de pruebas, descomprímelo.
+2. Entra en la carpeta pruebas-r89.
+3. Doble clic en INICIAR_GASTO360_R89_PRUEBAS.bat.
+4. El navegador abrirá http://127.0.0.1:18989/
+Requiere Python 3. Para detener el servidor cierra su ventana.
+
+FALLO REPARADO:
+- R8.8 llamaba a Gasto360OCRR88 pero el motor exponía
+  Gasto360OCRR87. R8.9 carga y comprueba un solo nombre
+  correcto: Gasto360OCRR89.
+- El recorte se procesa ahora solo sobre la región del
+  ticket. Así usa menos memoria que transformar toda la foto.
+- Cada pasada OCR se limita a aprox. 2,6 millones de píxeles.
+- Si OpenCV falla se aplica un recorte rectangular alternativo.
+- Si el OCR falla, se muestra etapa y motivo concreto, con
+  diagnóstico descargable.
+- Puede continuarse manualmente sin perder la fotografía.
+- Se conserva la lógica que separa el importe pagado, IVA,
+  promociones y método de pago.
+
+GRANULADO DE COLORES:
+El granulado puede venir de la fotografía en baja iluminación.
+El interruptor "Suavizar colores de la vista previa" solo cambia
+cómo se ve en pantalla. NO modifica ni fotografía original ni OCR.
+Para obtener mejor texto, aumenta la iluminación, evita sombras
+y acerca el ticket dentro del encuadre sin cortar los bordes.
+
+SEGURIDAD:
+Los resultados son temporales y solo están en la pestaña actual.
+Los diagnósticos incluyen datos del navegador, y los informes OCR
+pueden incluir detalles del ticket. Revisa antes de compartir.
+No hay ninguna nueva entrada en el HUB de producción.
+
+VALIDACION:
+node pruebas-r89/tests-r89.cjs desde la raíz del ZIP.
+Los tests prueban sintaxis, referencias y simulaciones:
+NO sustituyen una prueba de cámara en Samsung Internet.
