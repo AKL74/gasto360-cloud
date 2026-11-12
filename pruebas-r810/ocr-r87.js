@@ -1,159 +1,163 @@
 (()=>{
 'use strict';
-/* Gasto360 R8.9: OCR local multinivel, memoria controlada. Sin APIs ni envíos de tickets. */
-const clamp=(n,a,b)=>Math.max(a,Math.min(n,b));
-function makeCanvas(image,mode='original',section='full'){
-  const x=0,y=section==='cabecera'?0:section==='pie'?Math.floor(image.height*.45):0;
-  const w=image.width,h=section==='cabecera'?Math.ceil(image.height*.48):section==='pie'?image.height-y:image.height;
-  const scale=Math.min(2.8,2700/Math.max(w,h),Math.sqrt(2600000/Math.max(1,w*h)));
-  const c=document.createElement('canvas');
-  c.width=Math.max(1,Math.round(w*scale));c.height=Math.max(1,Math.round(h*scale));
-  const ctx=c.getContext('2d',{willReadFrequently:true});
-  ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
-  ctx.drawImage(image,x,y,w,h,0,0,c.width,c.height);
-  if(mode==='original')return c;
-  const im=ctx.getImageData(0,0,c.width,c.height),px=im.data,hist=new Uint32Array(256);
-  for(let i=0;i<px.length;i+=4)hist[Math.round(.299*px[i]+.587*px[i+1]+.114*px[i+2])]++;
-  const total=c.width*c.height,point=(pct)=>{let t=0;for(let i=0;i<256;i++){t+=hist[i];if(t>=total*pct)return i}return 255};
-  const lo=point(.025),hi=Math.max(point(.975),lo+45),stretch=255/(hi-lo);
-  for(let i=0;i<px.length;i+=4){
-    let gray=.299*px[i]+.587*px[i+1]+.114*px[i+2];
-    gray=clamp((gray-lo)*stretch,0,255);
-    // Las letras de una impresora térmica suelen ser muy finas.
-    if(mode==='binario')gray=gray<171?0:255;
-    px[i]=px[i+1]=px[i+2]=gray;px[i+3]=255;
-  }
-  ctx.putImageData(im,0,0);
-  return c;
-}
-function hasCritical(f){return !!(f?.merchant&&f?.date&&f?.amount!==''&&Number(f?.amount)>0)}
-function textScore(r){
- const f=r.fields||{},c=f.confidence||{};
- return (r.text.length>=30?8:0)+Math.min(r.text.length/50,20)+(f.merchant?c.merchant/3:0)+(f.date?c.date/3:0)+(f.amount!==''?c.amount/3:0)+(f.payment!=='Otro'?12:0)+(f.items?.length?7:0);
-}
-function combine(attempts){
- const best=attempts.slice().sort((a,b)=>textScore(b)-textScore(a))[0];
- const result=(typeof structuredClone==="function")?structuredClone(best.fields):JSON.parse(JSON.stringify(best.fields));
- const choices=['merchant','date','amount','payment','tax','concept','taxId','invoiceNo'];
- const evidence={},flags=new Set(result.flags||[]);
- for(const key of choices){
-  const options=attempts.filter(r=>{
-    const v=r.fields[key];return v!==undefined&&v!==null&&v!==''&&(key!=='payment'||v!=='Otro')&&(key!=='tax'||Number(v)>0);
-  }).map(r=>({value:r.fields[key],label:r.label,confidence:r.fields.confidence?.[key]||0,quality:r.confidence,source:r.fields.totalSource||'',base:r.fields.base??null,fiscal:r.fields.fiscalValidated||false}));
-  if(!options.length)continue;
-  const counts=new Map();
-  for(const x of options){const k=String(x.value).toUpperCase().trim();counts.set(k,(counts.get(k)||0)+1)}
-  options.sort((a,b)=>{
-   const same=(v)=>counts.get(String(v.value).toUpperCase().trim())||0;
-   const region=(x)=>((key==='merchant'||key==='date')&&x.label==='cabecera'?7:key==='amount'&&x.label==='pie'?7:0);
-   const evid=x=>key==='amount'?(/importe abonado|total compra|a pagar/.test(x.source)?24:/cuadre fiscal inferido/.test(x.source)?6:0)+(x.fiscal?12:0):0;
-   return (same(b)*10+b.confidence*.9+b.quality*.12+region(b)+evid(b))-(same(a)*10+a.confidence*.9+a.quality*.12+region(a)+evid(a));
-  });
-  const choice=options[0];result[key]=choice.value;evidence[key]=choice.label;
-  if(key==='merchant'){
-   const source=attempts.find(r=>r.label===choice.label);
-   if(source?.fields.category&&source.fields.category!=='Otros')result.category=source.fields.category;
-  }
-  if(key==='tax'){
-   if(choice.base!==null)result.base=choice.base;
-   result.fiscalValidated=choice.fiscal;
-  }
-  if(key==='amount')result.totalSource=choice.source;
-  if(result.confidence&&key in result.confidence)result.confidence[key]=Math.min(96,Math.round(choice.confidence));
-  const different=new Set(options.map(x=>String(x.value).toUpperCase().trim()));
-  if(different.size>1&&(key==='amount'||key==='date'||key==='payment')){
-    if(key==='amount'){
-      result.amountCandidates=[...new Set(options.map(x=>x.value)),...(result.amountCandidates||[])].slice(0,8);
-      flags.add('Hay varios importes reconocidos entre las lecturas: comprueba el TOTAL.');
-    }else flags.add('Las lecturas no coinciden en '+(key==='date'?'la fecha':'la forma de pago')+'. Confírmala.');
-  }
+/* R8.10: reconocimiento OCR por zonas, conserva el original y controla memoria del móvil. */
+const MAX_PIXELS=2400000;
+const segment={
+ cabecera:[0,.40],centro:[.28,.73],pie:[.58,1],completo:[0,1]
+};
+const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+function makeCanvas(image,mode='natural',section='completo'){
+ const range=segment[section]||segment.completo;
+ const y=Math.floor(image.height*range[0]);
+ const h=Math.max(1,Math.ceil(image.height*range[1])-y),w=image.width;
+ // Región corta: mayor magnificación útil, sin reducir excesivamente el largo.
+ const scale=Math.min(3.5,1450/w,3500/h,Math.sqrt(MAX_PIXELS/(w*h)));
+ const c=document.createElement('canvas');
+ c.width=Math.max(1,Math.round(w*scale));c.height=Math.max(1,Math.round(h*scale));
+ const ctx=c.getContext('2d',{willReadFrequently:mode!=='natural'});
+ if(!ctx)throw Error('No se pudo crear el lienzo OCR.');
+ ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+ ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
+ ctx.drawImage(image,0,y,w,h,0,0,c.width,c.height);
+ if(mode==='natural')return c;
+ const pixels=ctx.getImageData(0,0,c.width,c.height),d=pixels.data;
+ // Contraste MODERADO. La versión anterior recortaba los extremos
+ // y destruía letras muy finas de los tickets térmicos.
+ for(let i=0;i<d.length;i+=4){
+  const g=.299*d[i]+.587*d[i+1]+.114*d[i+2];
+  let v=mode==='suave'? (g-128)*1.12+134:(g-128)*1.28+134;
+  v=clamp(v,0,255);
+  d[i]=d[i+1]=d[i+2]=v;d[i+3]=255;
  }
- const allAmountCandidates=new Set();
- for(const r of attempts)for(const n of r.fields.amountCandidates||[])allAmountCandidates.add(n);
- result.amountCandidates=[...new Set([...(result.amountCandidates||[]),...allAmountCandidates])].slice(0,8);
- const allMerchants=new Map();
- for(const r of attempts)for(const m of r.fields.merchantCandidates||[])if(m?.name&&!allMerchants.has(m.name))allMerchants.set(m.name,m);
- result.merchantCandidates=[...allMerchants.values()].slice(0,7);
- const products=attempts.filter(r=>r.fields.items?.length).sort((a,b)=>b.fields.items.length-a.fields.items.length);
- if(products.length)result.items=products[0].fields.items;
- if(!result.concept&&result.items?.length)result.concept=result.items.slice(0,3).map(x=>x.name).join(' + ');
- if(result.merchant)for(const f of [...flags])if(/Comercio no verificado|varios comercios/.test(f)&&!result.merchantCandidates?.length)flags.delete(f);
- if(result.date)for(const f of [...flags])if(/Fecha no verificada/.test(f))flags.delete(f);
- if(result.amount!=='')for(const f of [...flags])if(/Importe total no verificado/.test(f))flags.delete(f);
- if(result.items?.length)for(const f of [...flags])if(/No se han reconocido productos/.test(f))flags.delete(f);
- if(!result.merchant)flags.add('No se ha podido leer el establecimiento.');
- if(!result.date)flags.add('No se ha podido leer la fecha.');
- if(result.amount==='')flags.add('No se ha podido leer el importe TOTAL.');
- if(result.payment==='Otro')flags.add('No se ha identificado con seguridad la forma de pago.');
- result.flags=[...flags];
- result.overall=Math.round(((result.confidence?.merchant||0)+(result.confidence?.date||0)+(result.confidence?.amount||0)+Math.max(...attempts.map(x=>x.confidence)))/4);
- return {fields:result,primary:best,evidence};
+ ctx.putImageData(pixels,0,0);
+ return c;
 }
-async function createWorker(log){
- if(!window.Tesseract)throw Error('El motor Tesseract no se ha cargado. Comprueba la conexión a Internet.');
- return await Tesseract.createWorker(['spa','eng'],Tesseract.OEM?.LSTM_ONLY||1,{logger:log});
+function fieldScore(r,key){
+ const f=r.fields||{},v=f[key];
+ if(v==null||v===''||(key==='payment'&&v==='Otro')||(key==='tax'&&Number(v)===0))return -9999;
+ let s=Number(r.confidence||0)*.25;
+ const local=f.confidence?.[key];if(Number.isFinite(local))s+=local*.65;
+ if(key==='merchant'){
+  const item=(f.merchantCandidates||[]).find(x=>x.name===v);
+  if(item?.verified)s+=40;
+  if(r.label.includes('cabecera'))s+=15;
+ }
+ if(key==='date'&&r.label.includes('cabecera'))s+=7;
+ if(key==='amount'){
+  const p=String(f.totalSource||'');
+  if(/importe abonado|total compra|a pagar/.test(p))s+=45;
+  else if(/total del ticket/.test(p))s+=30;
+  else if(/cuadre fiscal/.test(p))s+=19;
+  if(f.fiscalValidated)s+=15;
+  if(r.label.includes('pie')||r.label.includes('centro'))s+=6;
+ }
+ if(key==='payment'&&r.label.includes('pie'))s+=8;
+ if(key==='tax'&&f.fiscalValidated)s+=18;
+ return s;
 }
-async function recognize(worker,image,label,psm,onProgress,progressStart,progressSpan){
- await worker.setParameters({tessedit_pageseg_mode:String(psm),preserve_interword_spaces:'1',user_defined_dpi:'300'});
- onProgress(progressStart,'Leyendo '+label+'…','OCR en español e inglés');
- const r=await worker.recognize(image);
- const text=String(r.data?.text||'').trim(),confidence=Number(r.data?.confidence||0);
- onProgress(progressStart+progressSpan,'Lectura '+label+' finalizada',text.length+' caracteres');
- return {label,text,confidence};
+function hasRealMerchant(f){
+ const m=(f.merchantCandidates||[]).find(x=>x.name===f.merchant);
+ return Boolean(m&&m.verified);
 }
-async function run(image,extract,known,onProgress){
- if(!image?.width||!image?.height)throw Error('El recorte está vacío.');
- const attempts=[],diagnostics={version:'R8.9',width:image.width,height:image.height,passes:[],issues:[]};
- let activeProgress=0,worker;
- function progress(v,t,d){activeProgress=Math.max(activeProgress,v);onProgress?.(activeProgress,t,d)}
+function merge(readings){
+ if(!readings.length)throw Error('No hay lecturas OCR que combinar.');
+ const base=readings.slice().sort((a,b)=>b.confidence-a.confidence)[0];
+ const f=JSON.parse(JSON.stringify(base.fields));
+ const evidence={},warnings=[];
+ const keys=['merchant','date','amount','tax','payment','concept','taxId','invoiceNo'];
+ for(const k of keys){
+  const options=readings.filter(x=>fieldScore(x,k)>-9000);
+  if(!options.length)continue;
+  const evidenceScore=x=>{
+   let s=fieldScore(x,k);
+   if(k==='merchant'&&!hasRealMerchant(x.fields))s-=45;
+   const occurrences=options.filter(y=>String(y.fields[k])===String(x.fields[k])).length;
+   return s+Math.min(24,occurrences*8);
+  };
+  options.sort((a,b)=>evidenceScore(b)-evidenceScore(a));
+  const winner=options[0],v=winner.fields[k];
+  if(k==='merchant'&&!hasRealMerchant(winner.fields)){
+   // Nunca inventar "VENTA CONTADO" o un fragmento aleatorio como comercio.
+   f.merchant='';f.category='Otros';evidence[k]='No verificado';continue;
+  }
+  f[k]=v;evidence[k]=winner.label;
+  if(k==='merchant')f.category=winner.fields.category||'Otros';
+  if(k==='tax'&&winner.fields.base!=null){f.base=winner.fields.base;f.fiscalValidated=winner.fields.fiscalValidated}
+  if(k==='amount'){f.totalSource=winner.fields.totalSource;f.fiscalValidated=winner.fields.fiscalValidated}
+  if(f.confidence&&Number.isFinite(winner.fields.confidence?.[k]))f.confidence[k]=winner.fields.confidence[k];
+  const uniq=new Set(options.map(x=>String(x.fields[k])));
+  if(uniq.size>1&&['amount','date','payment'].includes(k))warnings.push('Las lecturas discrepan en '+({amount:'el total',date:'la fecha',payment:'la forma de pago'}[k])+'. Revisa el documento.');
+ }
+ const mc=new Map(),amounts=new Set();
+ for(const r of readings){
+  for(const m of r.fields.merchantCandidates||[])if(m.verified)mc.set(m.name,m);
+  for(const n of r.fields.amountCandidates||[])if(Number.isFinite(n))amounts.add(n);
+ }
+ f.merchantCandidates=[...mc.values()];
+ f.amountCandidates=[...amounts];
+ const products=readings.filter(x=>x.fields.items?.length).sort((a,b)=>b.fields.items.length-a.fields.items.length);
+ f.items=products[0]?.fields.items||[];
+ if(f.items.length&&(!f.concept||/^Compra en /.test(f.concept)))f.concept=f.items.slice(0,3).map(x=>x.name).join(' + ');
+ else if(f.merchant&&(!f.concept||/^Compra en /.test(f.concept)))f.concept='Compra en '+f.merchant;
+ else if(!f.merchant&&/^Compra en /.test(f.concept||''))f.concept='';
+ f.flags=warnings.concat(readings.some(x=>x.fields.documentType==='justificante_tarjeta')?['Puede tratarse de un justificante bancario, no de factura.']:[]);
+ if(!f.merchant)f.flags.push('Empresa no reconocida con seguridad; debe confirmarse.');
+ if(!f.date)f.flags.push('Fecha no reconocida.');
+ if(f.amount==null||f.amount==='')f.flags.push('Importe total no reconocido; no se utilizarán descuentos como total.');
+ if(f.payment==='Otro')f.flags.push('Forma de pago sin identificar.');
+ if(!f.items.length)f.flags.push('No se han podido desglosar los productos.');
+ f.overall=Math.round(readings.reduce((n,r)=>n+Math.max(0,r.confidence),0)/readings.length);
+ return {fields:f,evidence};
+}
+async function run(image,extract,known=[],notify=()=>{}){
+ if(!image?.width||!image?.height)throw Error('La imagen corregida no tiene tamaño válido.');
+ const diagnostics={version:'R8.10',image:[image.width,image.height],passes:[],issues:[],evidence:{}};
+ let worker=null;const readings=[];
+ const progress=(v,s,d)=>notify(Math.min(98,v),s,d);
  try{
-  progress(23,'Preparando reconocimiento','Cargando el motor OCR');
-  worker=await createWorker(m=>{
-   if(m?.status==='recognizing text'&&Number.isFinite(m.progress)){
-    progress(Math.min(96,activeProgress+Math.max(0,m.progress)*2),'Reconociendo texto',Math.round(m.progress*100)+' % de la lectura actual');
-   }
-  });
+  if(typeof Tesseract==='undefined'||!Tesseract.createWorker)throw Error('El motor Tesseract no se cargó; comprueba la conexión.');
+  progress(20,'Preparando lectura','El ticket se leerá por zonas, con escala propia');
+  worker=await Tesseract.createWorker(['spa','eng'],Tesseract.OEM?.LSTM_ONLY||1);
   const specs=[
-   ['original','original','full',Tesseract.PSM?.SINGLE_BLOCK||'6'],
-   ['contraste','contraste','full',Tesseract.PSM?.SINGLE_BLOCK||'6'],
-   ['cabecera','contraste','cabecera',Tesseract.PSM?.SPARSE_TEXT||'11'],
-   ['pie','contraste','pie',Tesseract.PSM?.SPARSE_TEXT||'11'],
-   ['binario','binario','full',Tesseract.PSM?.SPARSE_TEXT||'11']
+   ['cabecera','natural','cabecera','6'],
+   ['centro','natural','centro','6'],
+   ['pie','natural','pie','6'],
+   ['cabecera suave','suave','cabecera','6'],
+   ['pie suave','suave','pie','6'],
+   ['completo','natural','completo','11'],
+   ['centro suave','suave','centro','11']
   ];
   for(let i=0;i<specs.length;i++){
-   const [name,mode,region,psm]=specs[i];
-   if(i===2&&attempts.length){const interim=combine(attempts);if(hasCritical(interim.fields)&&interim.fields.payment!=='Otro'&&attempts.some(a=>a.fields.items?.length))break}
-   if(i===4&&attempts.length){
-    const interim=combine(attempts);
-    if(hasCritical(interim.fields)&&interim.fields.payment!=='Otro')break;
+   const [label,mode,section,psm]=specs[i];
+   if(i>=5&&readings.length){
+    const m=merge(readings).fields;
+    // Terminamos antes si el ticket ya está completo y los resultados son consistentes.
+    if(m.merchant&&m.date&&m.amount!==''&&m.payment!=='Otro'&&m.items.length)break;
    }
-   let c;
+   let c=null;
    try{
-    c=makeCanvas(image,mode,region);
-    const r=await recognize(worker,c,name,psm,progress,28+i*14,10);
-    r.fields=extract(r.text,r.confidence,known);
-    attempts.push(r);
-    diagnostics.passes.push({label:r.label,characters:r.text.length,confidence:Math.round(r.confidence),
-      merchant:r.fields.merchant||'',date:r.fields.date||'',amount:r.fields.amount,payment:r.fields.payment,
-      text:r.text});
-   }catch(e){
-    diagnostics.issues.push(name+': '+String(e.message||e));
-    if(!attempts.length&&i>=1)throw new Error('El reconocimiento OCR falló: '+diagnostics.issues.join(' | '));
-   }finally{
-    if(c){c.width=1;c.height=1}
-   }
+    c=makeCanvas(image,mode,section);
+    progress(24+i*10,'Leyendo '+label+'…',c.width+' × '+c.height+' píxeles');
+    await worker.setParameters({tessedit_pageseg_mode:psm,preserve_interword_spaces:'1',user_defined_dpi:'300'});
+    const rr=await worker.recognize(c);
+    const content=String(rr?.data?.text||'').trim(),conf=Number(rr?.data?.confidence||0);
+    const fields=extract(content,conf,known);
+    readings.push({label,text:content,confidence:conf,fields});
+    diagnostics.passes.push({label,width:c.width,height:c.height,characters:content.length,
+     confidence:Math.round(conf),merchant:fields.merchant,date:fields.date,amount:fields.amount,payment:fields.payment,
+     text:content});
+   }catch(e){diagnostics.issues.push(label+': '+String(e?.message||e));}
+   finally{if(c){c.width=1;c.height=1}}
   }
-  if(!attempts.length)throw Error('No se ha podido ejecutar ninguna lectura OCR.');
-  const merged=combine(attempts);
-  if(diagnostics.issues.length)merged.fields.flags=[...(merged.fields.flags||[]),'Algunas lecturas no terminaron; verifica los datos.'];
-  const all=attempts.map(r=>'=== '+r.label.toUpperCase()+' | '+Math.round(r.confidence)+'% ===\n'+(r.text||'[sin texto]')).join('\n\n');
-  diagnostics.evidence=merged.evidence;
-  diagnostics.empty=attempts.every(x=>x.text.length<8);
-  diagnostics.totalCharacters=attempts.reduce((n,x)=>n+x.text.length,0);
-  if(diagnostics.empty)merged.fields.flags.push('El OCR no ha reconocido caracteres legibles. Repite la fotografía con más luz y mayor tamaño de texto.');
-  progress(98,'Lectura completada','Revisa los datos antes de guardar');
-  return {fields:merged.fields,text:all,confidence:Math.round(Math.max(...attempts.map(r=>r.confidence))),diagnostics};
- }finally{if(worker){try{await worker.terminate()}catch{}}}
+  if(!readings.length)throw Error('No se pudo completar ninguna lectura: '+diagnostics.issues.join(' | '));
+  const combined=merge(readings);diagnostics.evidence=combined.evidence;
+  diagnostics.totalCharacters=readings.reduce((s,r)=>s+r.text.length,0);
+  if(diagnostics.issues.length)combined.fields.flags.push('Algunas zonas no pudieron analizarse.');
+  if(!diagnostics.totalCharacters)combined.fields.flags.push('El OCR no ha reconocido caracteres; revisa la fotografía original.');
+  const report=readings.map(r=>'=== '+r.label+' ('+Math.round(r.confidence)+'%) ===\n'+r.text).join('\n\n');
+  progress(98,'Lectura completada','Comprobar campos antes de guardar');
+  return {fields:combined.fields,text:report,confidence:combined.fields.overall,diagnostics};
+ }finally{if(worker)try{await worker.terminate()}catch(e){console.warn('No se pudo cerrar Tesseract',e)}}
 }
-window.Gasto360OCRR89={makeCanvas,run,combine};
+window.Gasto360OCRR810={run,makeCanvas,merge,hasRealMerchant};
 })();
