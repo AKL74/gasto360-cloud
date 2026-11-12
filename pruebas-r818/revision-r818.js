@@ -63,7 +63,7 @@ function findFiscal(passes,paid,prior){
    const winner=matching[0],other=matching.some(x=>x!==winner&&x.rows.length===winner.rows.length&&close(x.base,winner.base)&&close(x.tax,winner.tax));
    if(winner.summaryVerified||other){
      return {rows:winner.rows,base:winner.base,tax:winner.tax,gross:winner.gross,
-       status:'validado',inferredRows:0,warnings:[],source:winner.source,
+       status:'validado',inferredRows:winner.rows.filter(x=>x.review).length,warnings:[],source:winner.source,
        corroboration:winner.summaryVerified?'Resumen fiscal del ticket': 'Filas fiscales coincidentes entre lecturas'};
    }
  }
@@ -140,7 +140,7 @@ function productsInPass(pass){
    const last=products.at(-1);if(!last||last.gross!==null)continue;
    const weight=Number(weighted[1].replace(',','.')),unitPrice=Number(weighted[2].replace(',','.'));
    const gross=val(weighted[3]);
-   if(close(round(weight*unitPrice),gross)){Object.assign(last,{gross,net:gross,unit:'kg',quantity:1,weightKg:weight,unitPrice,needsReview:false});last.evidence.push({label:pass.label,raw:s});}
+   if(close(round(weight*unitPrice),gross)){Object.assign(last,{gross,net:gross,unit:'kg',quantity:1,weightKg:weight,unitPrice,needsReview:false});last.reviewReasons=[];last.candidates=[{value:gross,source:pass.label,raw:s,provisional:false}];last.evidence.push({label:pass.label,raw:s});}
    continue;
   }
   if(!/^\s*[|!I1]\s+[A-ZÁÉÍÓÚÑ]/i.test(s))continue;
@@ -172,7 +172,7 @@ function apply(fields,analysis,passes){
  const fiscal=findFiscal(passes,paid,analysis?.fiscal);
  if(fiscal&&close(fiscal.gross,paid)){
    fields.tax=fiscal.tax;fields.base=fiscal.base;fields.fiscalValidated=true;
-   fields.confidence={...(fields.confidence||{}),tax:94};
+   fields.confidence={...(fields.confidence||{}),tax:fiscal.inferredRows?89:94};
    analysis.fiscal=fiscal;
    if(analysis.essential){analysis.essential.fiscal=fiscal;analysis.essential.vatCorroborated=true;}
  }
