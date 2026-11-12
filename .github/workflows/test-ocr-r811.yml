@@ -1,0 +1,25 @@
+name: Validar Gasto360 R8.11 OCR restaurado
+on:
+  pull_request:
+    paths:
+      - "pruebas-r811/**"
+      - ".github/workflows/test-ocr-r811.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Sintaxis
+        run: |
+          node --check pruebas-r811/scanner.js
+          node --check pruebas-r811/ocr-r87.js
+          node --check pruebas-r811/scanner-r86-core.js
+          node --check pruebas-r811/test-app.js
+      - name: Regresion de OCR y campos
+        run: node pruebas-r811/tests-r811.cjs
