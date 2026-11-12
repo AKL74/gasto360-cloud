@@ -49,6 +49,10 @@ function combine(attempts){
    return (same(b)*18+b.confidence*.55+b.quality*.24+region(b))-(same(a)*18+a.confidence*.55+a.quality*.24+region(a));
   });
   const choice=options[0];result[key]=choice.value;evidence[key]=choice.label;
+  if(key==='merchant'){
+   const source=attempts.find(r=>r.label===choice.label);
+   if(source?.fields.category&&source.fields.category!=='Otros')result.category=source.fields.category;
+  }
   if(result.confidence&&key in result.confidence)result.confidence[key]=Math.min(96,Math.round(choice.confidence));
   const different=new Set(options.map(x=>String(x.value).toUpperCase().trim()));
   if(different.size>1&&(key==='amount'||key==='date'||key==='payment')){
@@ -137,7 +141,7 @@ async function run(image,extract,known,onProgress){
   const merged=combine(attempts);
   const all=attempts.map(r=>'=== '+r.label.toUpperCase()+' | '+Math.round(r.confidence)+'% ===\n'+(r.text||'[sin texto]')).join('\n\n');
   diagnostics.evidence=merged.evidence;
-  diagnostics.empty=attempts.every(x=>x.text.length<12);
+  diagnostics.empty=attempts.every(x=>x.text.length<8);
   diagnostics.totalCharacters=attempts.reduce((n,x)=>n+x.text.length,0);
   if(diagnostics.empty)merged.fields.flags.push('El OCR no ha reconocido caracteres legibles. Repite la fotografía con más luz y mayor tamaño de texto.');
   progress(98,'Lectura completada','Revisa los datos antes de guardar');
