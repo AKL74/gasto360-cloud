@@ -525,6 +525,9 @@ function updateReconciliation(){
     ' podría ser '+money(sum.suggestion.amount)+' por diferencia matemática. <b>No está leído del ticket.</b></p>'+
     '<button class="light-btn" type="button" id="confirmDifference">Confirmar manualmente '+money(sum.suggestion.amount)+'</button>':'');
  const note=$("itemsReviewNote");
+ if(f.desglose?.essential?.fiscal?.status==='validado' && f.desglose?.essential?.amount!==null && sum.status!=='cuadrado'){
+   note.textContent='Los datos esenciales están verificados: el desglose de productos es opcional y puede corregirse después. No confundir la revisión de artículos con la del TOTAL e IVA.';
+ }else
  note.textContent=f.desglose?.amountAudit?.verified?
   "Los productos al peso usan kg × €/kg y se comparan con la cifra impresa en varias lecturas. Las discrepancias se marcan para revisar. Todo queda solo en esta sesión.":
   "Los descuentos recuperados por suma y orden de lectura son provisionales. Los precios alternativos requieren aceptación manual. Todo queda solo en esta sesión.";
