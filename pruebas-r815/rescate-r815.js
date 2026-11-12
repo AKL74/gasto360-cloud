@@ -115,11 +115,11 @@ function addHints(rows,header){
  for(const row of rows){
   let best=-1,s=0;
   for(const e of header.entries){
-   if(e.m.length||!/[A-Z]{4}/i.test(e.line))continue;
+   if(!/[A-Z]{4}/i.test(e.line)||/^\d/.test(e.line))continue;
    const val=similarity(row.name,e.line);
    if(val>s){s=val;best=e.i}
   }
-  anchors.push(s>=.38?best:-1);
+  anchors.push(s>=.29?best:-1);
  }
  for(let idx=rows.length-1;idx>=0;idx--){
   const anchor=anchors[idx];if(anchor<0)continue;
@@ -195,7 +195,10 @@ function analyze(passes,fields){
   if(vals.size>1)candidates.forEach(x=>x.provisional=true);
   let name=main.name;
   if(other&&similarity(main.name,other.name)>.6&&other.name.length>name.length&&!/\d+[,.]\d{3,}/.test(other.name))name=other.name;
-  name=name.replace(/\s+\d{1,4}[,.]\d{1,3}\s*[ABC]?\s*$/i,'').replace(/\s+\d{2,3}\s*[ABC]\s*$/i,'').trim();
+  name=name.replace(/\s+\d{1,4}[,.]\d{1,3}\s*[ABC]?\s*$/i,'').replace(/\s+\d{2,3}\s*[ABC]\s*$/i,'')
+   .replace(/\s+\d{1,3}\s*$/i,'').trim();
+  if(other&&name.startsWith(other.name)&&other.name.length>=8&&name.length-other.name.length<=5)name=other.name;
+  if(other&&/^MINT TAQUITOS\b/.test(N(name))&&/^MINI TAQUITOS\b/.test(N(other.name)))name=other.name;
   if(other){
    const wa=base.canonical(main.name).split(' '),wb=base.canonical(other.name).split(' '),common=[];
    for(let j=0;j<Math.min(wa.length,wb.length);j++){if(wa[j]!==wb[j])break;common.push(wa[j])}
