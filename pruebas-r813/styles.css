@@ -50,3 +50,17 @@ main{max-width:1160px;margin:auto;padding:20px}.card,.login-card{background:#fff
   .ticket-guide{inset:6% 9%}
   .live-camera-actions{position:sticky;bottom:0;background:#fff;margin:0 -15px -15px;padding:12px 15px calc(12px + env(safe-area-inset-bottom));z-index:5}
 }
+
+/* R8.13: captura nativa prioritaria, información de resolución y alternativa explícita. */
+.native-camera-intro{padding:14px 16px;border:1px solid #9bc3db;border-radius:14px;background:#e9f4fc;color:#193d56;margin-bottom:15px}
+.native-camera-intro strong{display:block;font-size:16px}
+.native-camera-intro p{margin:6px 0 0;font-size:13px;line-height:1.5}
+.capture-actions-native{grid-template-columns:1fr 1fr}
+.capture-button.primary-native{background:#114c6e;color:#fff;border:2px solid #86c7e7;box-shadow:0 3px 12px #032f4433;text-align:center;padding:13px 17px}
+.capture-button.primary-native:focus-within,.capture-button:focus-visible{outline:3px solid #edba59;outline-offset:3px}
+.camera-alternative{margin-top:14px;padding:12px 14px;background:#f1f5f6;border:1px solid #c2ced1;border-radius:12px;color:#224155}
+.camera-alternative summary{cursor:pointer;font-size:14px;font-weight:750}
+.camera-alternative p{font-size:13px;line-height:1.5}
+.camera-alternative button{width:100%;border:0;min-height:48px;margin-top:6px}
+.capture-meta{background:#e8f2f9;color:#17435e;padding:12px 14px;border:1px solid #a9c9d9;border-radius:12px;margin-bottom:12px;font-size:13px;line-height:1.55;overflow-wrap:anywhere}
+@media(max-width:680px){.capture-actions-native{grid-template-columns:1fr}.capture-button.primary-native{min-height:78px;font-size:17px}}
