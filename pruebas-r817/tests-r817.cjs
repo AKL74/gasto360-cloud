@@ -7,7 +7,7 @@ const api=w.Gasto360EsencialesR817;
 const pass=(label,text)=>({label,text,confidence:80});
 // Todos los comerciantes, identificadores y artículos siguientes son de ejemplo sintético.
 const small=[
- pass('original',\`TIENDA DE ENSAYO, S.A.
+ pass('original',`TIENDA DE ENSAYO, S.A.
 A-12345678
 01/10/2026 09:38 OP:1111
 Descripción P. Unit Imp.(€)
@@ -17,8 +17,8 @@ ENTREGA EFECTIVO 7,00
 DEVOLUCIÓN 0,3)
 IVA BASE IMPONIBLE (€) CUOTA (€)
 21% 1. 0,29
-TOTAL 1,36 0,29\`),
- pass('contraste',\`TIENDA DE ENSAYO, S.A.
+TOTAL 1,36 0,29`),
+ pass('contraste',`TIENDA DE ENSAYO, S.A.
 A-12345678
 01/10/2026 09:38 OP:1111
 Descripción P. Unit Imp.(€)
@@ -28,7 +28,7 @@ ENTREGA EFECTÍO 2,00
 DEVOLUCIÓN 0,3
 IVA BASE IMPONIBLE (€) CUOTA (€)
 21% 1,36 1,29
-TOTAL 1,36 0,29\`)];
+TOTAL 1,36 0,29`)];
 let f={amount:.29,merchant:'TIENDA DE ENSAYO, S.A.',confidence:{merchant:92,amount:85},flags:[]};
 let x=api.interpret(small,f);
 assert.equal(x.amount,1.65);assert.equal(x.fiscal.base,1.36);assert.equal(x.fiscal.tax,.29);
@@ -40,7 +40,7 @@ w2.Gasto360EsencialesR817.apply(f,analysis,x);
 assert.equal(f.amount,1.65);assert.equal(f.tax,.29);assert.equal(f.base,1.36);
 assert.equal(f.payment,'Efectivo');assert.equal(f.fiscalValidated,true);assert.equal(analysis.items[0].unit,'ud');
 const large=[
- pass('original',\`TIENDA DE ENSAYO, S.A.
+ pass('original',`TIENDA DE ENSAYO, S.A.
 26/09/2026 20:42 OP:1111
 Descripción P. Unit Imp.(€)
 ARTICULO PRUEBA 1,00
@@ -50,8 +50,8 @@ IVA BASE IMPONIBLE (€) CUOTA (€)
 4% 36,86 1,47
 10% 3,41 0,34
 TOTAL 40,27 1,81
-Importe: 42,08 € CONTADO\`),
- pass('contraste',\`TIENDA DE ENSAYO, S.A.
+Importe: 42,08 € CONTADO`),
+ pass('contraste',`TIENDA DE ENSAYO, S.A.
 26/09/2026 20:42 OP:1111
 Descripción P. Unit Imp.(€)
 ARTICULO PRUEBA 1,00
@@ -61,7 +61,7 @@ IVA BASE IMPONIBLE (€) CUOTA (€)
 4% 36,86 1,47
 10% 3,41 0,34
 TOTAL 40,27 1,81
-Importe: 42,08 € CONTADO\`)];
+Importe: 42,08 € CONTADO`)];
 x=api.interpret(large,{amount:47.08});
 assert.equal(x.amount,42.08);assert.equal(x.fiscal.tax,1.81);assert.equal(x.fiscal.base,40.27);
 assert.equal(x.payment,'Tarjeta');assert.equal(x.date,'2026-09-26');
