@@ -11,7 +11,7 @@ function makeCanvas(image,mode='natural',section='completo'){
  const y=Math.floor(image.height*range[0]);
  const h=Math.max(1,Math.ceil(image.height*range[1])-y),w=image.width;
  // Región corta: mayor magnificación útil, sin reducir excesivamente el largo.
- const scale=Math.min(3.5,1450/w,3500/h,Math.sqrt(MAX_PIXELS/(w*h)));
+ const scale=Math.min(3.5,1450/w,3500/h,Math.sqrt(MAX_PIXELS*.97/(w*h)));
  const c=document.createElement('canvas');
  c.width=Math.max(1,Math.round(w*scale));c.height=Math.max(1,Math.round(h*scale));
  const ctx=c.getContext('2d',{willReadFrequently:mode!=='natural'});
