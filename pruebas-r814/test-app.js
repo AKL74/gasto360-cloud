@@ -24,6 +24,39 @@ function exportResults(){
  'informe_pruebas_Gasto360_R814_'+new Date().toISOString().slice(0,10)+'.json');
  toast('Informe descargado en el dispositivo; no se ha enviado a ninguna nube.');
 }
+function comparePricesInSession(){
+ const panel=$('sessionPriceComparison');
+ panel.hidden=false;
+ const groups=new Map();
+ for(const saved of results){
+  for(const item of saved.fields.items||saved.metadata.items||[]){
+   if(item.gross==null||!item.name)continue;
+   const weight=item.unit==='kg'&&Number(item.weightKg)>0?Number(item.weightKg):null;
+   const quantity=weight||Number(item.quantity)||1;
+   if(!Number.isFinite(quantity)||quantity<=0)continue;
+   const unit=weight?'kg':'ud';
+   const net=(Number(item.gross)-Number(item.discount||0))/quantity;
+   if(!Number.isFinite(net)||net<0)continue;
+   const key=(window.Gasto360DesgloseR814?.canonical(item.name)||item.name.toUpperCase())+'|'+unit;
+   const row={name:item.name,unit,price:net,date:saved.fields.date,merchant:saved.fields.merchant,source:saved.id};
+   if(!groups.has(key))groups.set(key,[]);
+   groups.get(key).push(row);
+  }
+ }
+ const repeated=[...groups.values()].filter(x=>x.length>=2).sort((a,b)=>b.length-a.length);
+ if(!repeated.length){
+  panel.innerHTML='<h3>Comparación temporal de precios</h3><p>Para comparar precios, registra durante esta sesión al menos dos compras con un artículo de nombre coincidente. No hay conexión con un histórico permanente.</p>';
+  return;
+ }
+ const table=repeated.map(lines=>{
+  const ps=lines.map(x=>x.price),low=Math.min(...ps),high=Math.max(...ps);
+  const list=lines.map(x=>esc(x.date+' · '+x.merchant)+': '+euro(x.price)+'/'+esc(x.unit)).join('<br>');
+  return '<tr><td>'+esc(lines[0].name)+'</td><td>'+lines.length+'</td><td>'+euro(low)+'</td><td>'+euro(high)+'</td><td>'+list+'</td></tr>';
+ }).join('');
+ panel.innerHTML='<h3>Comparación de precios (solo esta sesión)</h3>'+
+  '<p>Se comparan precios netos unitarios de nombres coincidentes. Descuentos, marcas y formatos pueden afectar la comparación. No se guarda en Supabase.</p>'+
+  '<div class="table-scroll"><table><thead><tr><th>Producto</th><th>Registros</th><th>Mínimo</th><th>Máximo</th><th>Lecturas</th></tr></thead><tbody>'+table+'</tbody></table></div>';
+}
 function duplicates(fields){
  return results.filter(x=>String(x.fields.merchant).trim().toUpperCase()===String(fields.merchant).trim().toUpperCase()&&x.fields.date===fields.date&&Number(x.fields.amount)===Number(fields.amount));
 }
@@ -68,6 +101,11 @@ function openResult(id){
  $('docTax').value=f.tax||0;$('docConcept').value=f.concept||'';$('docCategory').value=f.category||'';
  $('documentOcrMeta').textContent='Confianza OCR: '+Math.round(selected.ocrConfidence||0)+' %. Modo pruebas: sin base de datos externa.';
  $('documentOcrText').textContent=selected.text||'Sin texto OCR';
+ const products=f.items||selected.metadata.items||[];
+ const status=f.desgloseEstado||selected.metadata.desglose?.reconciliation?.status||'pendiente';
+ $('docItemsSummary').innerHTML='<h3>Productos guardados ('+products.length+')</h3><p>Conciliación: '+esc(status)+'</p>'+
+   (products.length?products.map(x=>'<div class="saved-item"><b>'+esc(x.name)+'</b><span>'+(x.gross==null?'Precio pendiente':euro(x.gross))+
+      (Number(x.discount)>0?' · descuento −'+euro(x.discount):'')+'</span></div>').join(''):'<p>Sin productos desglosados.</p>');
  $('retryDocument').hidden=true;showFile('scanner_corrected');
 }
 $('homeBtn').addEventListener('click',()=>{goHome();window.gasto360Scanner?.reset?.()});
@@ -80,6 +118,7 @@ $('backDocuments').addEventListener('click',renderResults);
 $('downloadDocument').addEventListener('click',()=>{if(!selected)return;const blob=selectedKind==='original'?selected.original:selected.corrected;if(blob)download(blob,'gasto360_r811_'+selectedKind+'.jpg')});
 $('documentExpenseForm').addEventListener('submit',e=>{e.preventDefault();if(!selected)return;Object.assign(selected.fields,{merchant:$('docMerchant').value,date:$('docDate').value,amount:Number($('docAmount').value),tax:Number($('docTax').value),concept:$('docConcept').value,category:$('docCategory').value});toast('Corrección guardada solo en esta pestaña.');renderResults()});
 $('exportAllTests').addEventListener('click',exportResults);
+$('compareSessionPrices').addEventListener('click',comparePricesInSession);
 document.querySelectorAll('.backHomeBtn').forEach(e=>{if(e.id!=='scannerExit')e.addEventListener('click',()=>show('scannerView'))});
 show('scannerView');
 toast('Prueba aislada R8.14: ningún ticket se enviará a Supabase.','ok',6500);
