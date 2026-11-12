@@ -1,6 +1,6 @@
 (function(root){
 'use strict';
-/* Gasto360 R8.8: análisis conservador del ticket, sin servicios de IA externos. */
+/* Gasto360 R8.10: análisis conservador del ticket, sin servicios de IA externos. */
 const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
 const clean=s=>String(s||'').replace(/[|_*~]/g,' ').replace(/\s+/g,' ').trim();
 const RULES=[
@@ -55,7 +55,7 @@ function merchants(lines,known=[]){
  }
  if(!out.length)lines.slice(0,10).forEach((l,i)=>{
   const u=norm(l),letters=(u.match(/[A-Z]/g)||[]).length,digits=(u.match(/\d/g)||[]).length;
-  if(letters<4||digits>letters||/FACTURA|TICKET|RECIBO|FECHA|HORA|TELEF|TOTAL|CUOTA|IVA|BASE|GRACIAS|CAJA|PAGO|TARJETA|DIRECCION|CALLE|AVDA|PROVINCIA|WWW\.|HTTP|NIF|CIF/.test(u))return;
+  if(letters<5||digits>letters||/VENTA CONTADO|VENTA EFECTIVO|RECIBO PARA|CLIENTE|OPERACION|APROBADA|CONTACTLESS|TERMINAL|IMPORTE|IMP\.|EUR|GRUPOs+TARJETA|FACTURA|TICKET|RECIBO|FECHA|HORA|TELEF|TOTAL|CUOTA|IVA|BASE|GRACIAS|CAJA|PAGO|TARJETA|DIRECCION|CALLE|AVDA|PROVINCIA|WWW\.|HTTP|NIF|CIF|ENTREGA|PROMO|DESCUENTO|AHORRO|EJEMPLAR/.test(u))return;
   const score=72-i*4+(/\bS\.?A\.?\b|\bS\.?L\.?\b|\bSLU\b/.test(u)?6:0)-(u.length>38?20:0);
   out.push({name:clean(l),cat:null,score,verified:false});
  });
@@ -181,8 +181,8 @@ function invoice(text){
 function extract(text,ocrConf,known=[]){
  const lines=String(text||'').split(/\r?\n/).map(clean).filter(s=>s.length>1);
  const type=kind(text),mc=merchants(lines,known),tot=detectTotals(lines,type),tx=taxValues(lines),it=type==='ticket'?items(lines):[];
- const date=parseDate(text),merchant=mc[0]?.name||'',concept=it.length?it.slice(0,3).map(x=>x.name).join(' + '):(type==='justificante_tarjeta'?'Pago con tarjeta':(merchant?'Compra en '+merchant:''));
- const category=mc[0]?.cat||(type==='justificante_tarjeta'?'Otros':'Otros');
+ const date=parseDate(text),merchant=mc[0]?.verified?mc[0].name:'',concept=it.length?it.slice(0,3).map(x=>x.name).join(' + '):(type==='justificante_tarjeta'?'Pago con tarjeta':(merchant?'Compra en '+merchant:''));
+ const category=mc[0]?.verified?(mc[0]?.cat||'Otros'):'Otros';
  const quality=Math.max(.45,Math.min(1,Number(ocrConf||0)/90));
  const confidence={
   merchant:merchant?Math.round((mc[0]?.score||65)*quality):0,
