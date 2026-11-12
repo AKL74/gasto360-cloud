@@ -13,6 +13,8 @@ for(const id of ['purchaseReconciliation','taxBreakdownRows','taxBreakdownState'
 assert.match(scanner,/Gasto360DesgloseR814\.analyze/);
 assert.match(scanner,/renderVatDetails\(\)/);
 assert.match(scanner,/normalizeEditable\(candidate\)/);
+assert.match(scanner,/Cifras modificadas: revisar/);
+assert.match(scanner,/liveValid/);
 assert.match(scanner,/scannerVersion:"R8.14"/);
 assert.ok(app.includes('R8.14 TEST'));
 assert.ok(html.includes('id="compareSessionPrices"'));
