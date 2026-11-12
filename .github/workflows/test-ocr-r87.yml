@@ -1,0 +1,25 @@
+name: Comprobaciones Gasto360 OCR R8.7
+on:
+  pull_request:
+    paths:
+      - "pruebas-r87/**"
+      - ".github/workflows/test-ocr-r87.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Sintaxis JS
+        run: |
+          node --check pruebas-r87/scanner.js
+          node --check pruebas-r87/scanner-r86-core.js
+          node --check pruebas-r87/ocr-r87.js
+          node --check pruebas-r87/test-app.js
+      - name: Pruebas interpretación y OCR simulado
+        run: node pruebas-r87/tests-r87.cjs
