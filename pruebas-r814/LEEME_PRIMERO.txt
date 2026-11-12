@@ -1,0 +1,52 @@
+GASTO360 R8.14 - DESGLOSE INTELIGENTE DE COMPRAS
+================================================
+ESTADO: Laboratorio de pruebas independiente. NO modifica el
+Gasto360 habitual, el HUB ni sus datos de Supabase.
+No conecta con la base de datos. Resultados solo en pestaña.
+
+SAMSUNG (HTTPS):
+https://akl74.github.io/gasto360-cloud/pruebas-r814/?v=814
+
+WINDOWS:
+Descomprime el ZIP de la rama desglose-inteligente-r814-20261112.
+Entra en pruebas-r814 y ejecuta
+INICIAR_GASTO360_R814_PRUEBAS.bat (requiere Python 3).
+Puerto de pruebas 18914, sin alterar R8.13 ni otros programas.
+
+PRUEBA DE ACEPTACIÓN
+1. Selecciona con "Hacer foto con cámara del teléfono" o
+   "Elegir foto de galería" la FOTO NÍTIDA del mismo ticket Lidl.
+2. Verifica que el recorte solo incluya el ticket.
+3. Pulsa Continuar: LIDL, 04/11/2026, 42,48 euros, Tarjeta.
+4. Revisa "Desglose del IVA": 4 % / 10 % / 21 %;
+   base 37,31 euros, cuota 5,17 euros. Una base 21 % ha
+   sido derivada matemáticamente: confirma la cifra.
+5. Revisa "Desglose inteligente": 11 líneas, 4 promociones
+   que suman 6,93 euros. Algunas cantidades requieren revisión.
+6. El precio del CHAMPU no se ha recuperado con fiabilidad.
+   La diferencia matemática 2,25 euros ES SOLO SUGERENCIA,
+   no un precio confirmado. Puedes comprobarlo y pulsar
+   "Confirmar manualmente" si coincide con el ticket.
+7. Pulsa "Editar desglose" para corregir producto, cantidad,
+   importe bruto y descuento. "Terminar edición" para revisar
+   el cuadrado del total.
+8. Puedes guardar un resultado local. Descarga informe JSON de
+   la sesión para conservar los productos y las correcciones.
+   No se conservan automáticamente al cerrar o recargar.
+
+CÓMO SE VERIFICA
+- Bruto productos - descuentos = neto conocido.
+- Neto conocido y total pagado deben coincidir solo si TODOS
+  los importes están leídos o confirmados.
+- La tabla fiscal de IVA se acepta si las filas coherentes
+  del 4%, 10% y 21% suman el total pagado.
+- Si falta un dato o se ha reconstruido, se indica claramente.
+
+LIMITACIONES
+El OCR puede leer incorrectamente letras, unidades o descuentos.
+No inventa productos ni precios. El sistema debe verificarse
+con cada ticket real antes de integrarse en Gasto360 de producción.
+Solo se usan bibliotecas locales en el navegador, cargadas desde
+CDN público. Los tickets no se suben a ninguna IA externa.
+Los informes JSON pueden contener datos del ticket: revisa
+su contenido antes de compartirlo con otras personas.
