@@ -184,7 +184,8 @@ function scoreQuad(p,w,h,sample){
  const cx=p.reduce((a,x)=>a+x.x,0)/4,cy=p.reduce((a,x)=>a+x.y,0)/4;
  const center=1-Math.min(1,Math.hypot((cx-w/2)/(w/2),(cy-h/2)/(h/2))/1.4);
  const coverage=Math.min(1,area/.075)*Math.max(0,1-Math.max(0,area-.38)/.4);
- return .42*paper+.35*portrait+.15*center+.08*coverage;
+ const borderPenalty=(p.some(q=>q.x<w*.02||q.x>w*.98)&&Math.abs(cx-w/2)>w*.22)?.25:0;
+ return .42*paper+.35*portrait+.15*center+.08*coverage-borderPenalty;
 }
 const api={moneyVals,parseDate,detectTotals,extract,scoreQuad,kind};
 root.Gasto360ScanR86=api;
