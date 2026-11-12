@@ -394,7 +394,13 @@ async function runOCR(){
   if(!window.Gasto360OCRR816)throw new Error("No se cargó el motor OCR R8.16. Recarga la página.");
   const r=await window.Gasto360OCRR816.run(dst,(raw,conf,known)=>window.Gasto360ScanR86.extract(raw,conf,known),knownMerchants,updateProgress);
   const analysis=window.Gasto360DesgloseR816.analyze(r.diagnostics?.passes||[],r.fields);
-  window.Gasto360DesgloseR816.applyResult(r.fields,analysis);
+  window.Gasto360DesgloseR816.applyResult(r.fields,analysis,r.diagnostics?.passes||[]);
+// Concepto resumido para tickets con detalle: el listado completo queda en artículos.
+if(analysis?.amountAudit?.verified && analysis.items.length>3 &&
+   (r.fields.concept||'').includes('+')){
+  r.fields.concept='Compra en '+(r.fields.merchant||'comercio')+' ('+analysis.items.length+' artículos)';
+  r.fields.confidence.concept=85;
+}
   r.fields.items=analysis.items;
   r.fields.desglose=analysis;
   // Una cifra identificada y cuadrada como descuento no debe sugerirse como TOTAL.
