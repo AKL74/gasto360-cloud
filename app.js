@@ -364,11 +364,11 @@ async function openDocumentGroup(expenseId){
   const docs=currentDocs.filter(d=>d.expense_id===expenseId);
   const x=currentExpenses.find(e=>e.id===expenseId)||documentExpenses.find(e=>e.id===expenseId);
   if(!docs.length){toast("No hay documentos vinculados.","warn");return}
-  currentDocGroup={expense:x,docs,selected:null};showView("documentDetailView");
+  currentDocGroup={expense:x,docs,selected:null};const preferred=docs.find(d=>d.doc_kind==="scanner_corrected")||docs[0];showView("documentDetailView");
   $("documentDetailTitle").textContent=x?`${x.merchant} · ${money(x.amount)}`:"Documento";
   $("docMerchant").value=x?.merchant||"";$("docDate").value=x?.date||"";$("docAmount").value=x?.amount??"";$("docTax").value=x?.tax??0;$("docConcept").value=x?.concept||"";$("docCategory").value=x?.category||"";
-  $("documentFileTabs").innerHTML=docs.map((d,i)=>`<button class="file-tab ${i===0?"active":""}" data-doc="${d.id}">${d.doc_kind==="original"?"Original":"Corregido"} ${d.upload_status!=="stored"?"· pendiente":""}</button>`).join("");
-  await selectDocumentFile(docs.find(d=>d.doc_kind==="scanner_corrected")||docs[0])
+  $("documentFileTabs").innerHTML=docs.map((d,i)=>`<button class="file-tab ${d.id===preferred.id?"active":""}" data-doc="${d.id}">${d.doc_kind==="original"?"Original":"Corregido"} ${d.upload_status!=="stored"?"· pendiente":""}</button>`).join("");
+  await selectDocumentFile(preferred)
 }
 $("documentFileTabs").addEventListener("click",async e=>{const b=e.target.closest(".file-tab");if(!b)return;document.querySelectorAll(".file-tab").forEach(x=>x.classList.toggle("active",x===b));const d=currentDocGroup.docs.find(x=>x.id===b.dataset.doc);if(d)await selectDocumentFile(d)});
 async function selectDocumentFile(d){
