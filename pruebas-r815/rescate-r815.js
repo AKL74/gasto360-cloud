@@ -127,10 +127,15 @@ function addHints(rows,header){
   header.entries.forEach((e,j)=>{
    if(occupied.has(j)||!e.m.length||!/^[0-9.,\s]+[A-C]?\s*$/.test(e.line))return;
    const dist=e.i-anchor;
-   if(Math.abs(dist)>3)return;
+   if(Math.abs(dist)>4)return;
    const val=e.m.at(-1).amount;
    if(val<=0||val>1000)return;
-   const strength=e.vat?2:0,score=strength-Math.abs(dist)*.2+(dist<0?.2:0);
+   const nextAnchor=anchors.slice(idx+1).find(x=>x>=0)??Infinity;
+   // Una cifra situada entre dos nombres suele pertenecer al nombre más próximo.
+   // Si es equidistante, en tickets fiscales el precio aparece a menudo ANTES del nombre.
+   if(dist>0&&nextAnchor<Infinity&&nextAnchor-e.i<=dist) return;
+   // Los posibles importes de promoción, sin código A/B/C, no son precios confirmados.
+   const strength=e.vat?1.8:0,score=strength-Math.abs(dist)*.27+(dist<0?.55:0);
    candidates.push({j,value:val,line:e.line,score,vat:e.vat});
   });
   candidates.sort((a,b)=>b.score-a.score);
@@ -188,7 +193,14 @@ function analyze(passes,fields){
   let gross=vals.size===1?[...vals][0]:null;
   if(vals.size>1)candidates.forEach(x=>x.provisional=true);
   let name=main.name;
-  if(other&&similarity(main.name,other.name)>.6&&other.name.length>name.length)name=other.name;
+  if(other&&similarity(main.name,other.name)>.6&&other.name.length>name.length&&!/\d+[,.]\d{3,}/.test(other.name))name=other.name;
+  name=name.replace(/\s+\d{1,4}[,.]\d{1,3}\s*[ABC]?\s*$/i,'').replace(/\s+\d{2,3}\s*[ABC]\s*$/i,'').trim();
+  if(other){
+   const wa=base.canonical(main.name).split(' '),wb=base.canonical(other.name).split(' '),common=[];
+   for(let j=0;j<Math.min(wa.length,wb.length);j++){if(wa[j]!==wb[j])break;common.push(wa[j])}
+   if(common.length===1&&common[0].length>=7&&similarity(main.name,other.name)>.28&&
+      !/\d/.test(common[0]))name=common[0];
+  }
   const kg=main.weightKg??other?.weightKg??null,unitPrice=main.unitPrice??other?.unitPrice??null;
   const qty=main.quantity||other?.quantity||1;
   const notes=[...main.reason,...(other?.reason||[])];
@@ -219,7 +231,7 @@ function analyze(passes,fields){
    row.gross=null;row.reviewReasons.push('Cantidad y precio unitario no concuerdan.');
   }
  }
- const promoSlots=left.promos;
+ const promoSlots=full.slice().sort((a,b)=>b.promos.length-a.promos.length)[0].promos;
  const promoNumbers=h.offers;
  const statedDiscount=findDiscountTotal(passes||[]);
  let sum=0,applied=0,chosen=null;
