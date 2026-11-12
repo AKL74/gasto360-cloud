@@ -16,7 +16,7 @@ assert.equal(by('MERMELADA').gross,3.09);assert.equal(by('MERMELADA').discount,3
 assert.equal(by('QUESO').gross,1.95);assert.equal(by('QUESO').discount,1.95);
 assert.equal(by('VITAMINAS').discount,1.5);assert.equal(by('FIAMBRE').discount,.39);
 assert.equal(by('ZUMO').proposal,16.77);assert.equal(by('GEL').proposal,2.25);assert.equal(by('ACEITE').proposal,2.07);
-assert.equal(by('PECHUGA').gross,5.4);assert.equal(by('FRUTA').gross,2.51);
+assert.equal(by('PECHUGA').gross,5.4);assert.equal(by('FRUTA TEMPORADA').gross,2.51);
 assert.equal(data.reconciliation.status,'pendiente');assert.ok(data.reconciliation.unknown>0);
 assert.equal(data.reconciliation.discountsKnown,5.04);assert.equal(data.reconciliation.netKnown,7.91);
 assert.equal(data.items.some(x=>x.name.toUpperCase().includes('DEVOLUCIONES')),false);
