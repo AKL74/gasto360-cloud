@@ -64,6 +64,35 @@ async function autoEdges(){
         ap.delete();c.delete()
       }
     }
+    // Fallback para papel curvado o bordes poco contrastados:
+    // máscara de papel claro, cierre morfológico y rectángulo envolvente.
+    if(!candidates.some(c=>c.score>=.78)){
+      let paperMask,kernel,paperContours,paperHierarchy;
+      try{
+        paperMask=new cv.Mat(small.height,small.width,cv.CV_8UC1);
+        for(let i=0,j=0;i<cropSample.data.length;i+=4,j++){
+          const r=cropSample.data[i],g=cropSample.data[i+1],b=cropSample.data[i+2];
+          const lum=.299*r+.587*g+.114*b;
+          paperMask.data[j]=(lum>137&&(Math.max(r,g,b)-Math.min(r,g,b))<65)?255:0;
+        }
+        kernel=cv.getStructuringElement(cv.MORPH_RECT,new cv.Size(5,7));
+        cv.morphologyEx(paperMask,paperMask,cv.MORPH_CLOSE,kernel);
+        paperContours=new cv.MatVector();paperHierarchy=new cv.Mat();
+        cv.findContours(paperMask,paperContours,paperHierarchy,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_SIMPLE);
+        for(let i=0;i<paperContours.size();i++){
+          const c=paperContours.get(i),area=Math.abs(cv.contourArea(c));
+          if(area>=small.width*small.height*.003&&area<=small.width*small.height*.75){
+            const r=cv.boundingRect(c),rx=src.width/small.width,ry=src.height/small.height;
+            const q=[{x:r.x*rx,y:r.y*ry},{x:(r.x+r.width)*rx,y:r.y*ry},
+                     {x:(r.x+r.width)*rx,y:(r.y+r.height)*ry},{x:r.x*rx,y:(r.y+r.height)*ry}];
+            const score=scoreQuad(q,src.width,src.height);
+            if(score>=.56)candidates.push({q,score:score-.025});
+          }
+          c.delete();
+        }
+      }catch(e){console.warn("Segmentación de papel no concluyente",e)}
+      finally{[paperMask,kernel,paperHierarchy].forEach(x=>{try{x&&x.delete()}catch{}});try{paperContours&&paperContours.delete()}catch{}}
+    }
     candidates.sort((a,b)=>b.score-a.score);
     if(candidates.length&&candidates[0].score>=.56){pts=candidates[0].q;cropConfidence=candidates[0].score;drawOverlay();setCropBanner(cropConfidence>.78?"Posible ticket aislado. Comprueba los bordes.":"Comprueba que los 4 puntos rodean el ticket y no la carpeta.",cropConfidence>.78?"ok":"warn")}
     else{defaultPts();setCropBanner("No encontramos los 4 bordes con suficiente seguridad. Ajusta los puntos manualmente.","warn")}
