@@ -126,3 +126,7 @@ main{max-width:1160px;margin:auto;padding:20px}.card,.login-card{background:#fff
 .item-proposal b{font-size:16px}
 .item-proposal .accept-proposal{margin-top:9px;min-height:45px;padding:10px 12px;width:100%;border-radius:9px;font-weight:750}
 .item-evidence strong{display:block;margin-top:7px}
+
+/* R8.16: conciliación trazable de importes y aviso de contradicciones OCR */
+.total-reconciled{padding:13px 14px;border-radius:11px;background:#12332b;border:1px solid #468d77;color:#d1ffe5;line-height:1.55;margin-top:12px}
+.total-reconciled b{color:#f3fff6}
