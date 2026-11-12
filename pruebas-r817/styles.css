@@ -130,3 +130,16 @@ main{max-width:1160px;margin:auto;padding:20px}.card,.login-card{background:#fff
 /* R8.16: conciliación trazable de importes y aviso de contradicciones OCR */
 .total-reconciled{padding:13px 14px;border-radius:11px;background:#12332b;border:1px solid #468d77;color:#d1ffe5;line-height:1.55;margin-top:12px}
 .total-reconciled b{color:#f3fff6}
+
+/* R8.17: mostrar los cinco datos esenciales por delante de los artículos */
+.essentials-card{padding:18px 16px;margin:16px 0 20px;background:#10202a;border:1px solid #355e73;border-radius:18px;color:#d7e9fa}
+.essentials-card h3{font-size:1.2rem;margin:0 0 8px}
+.essentials-card p{margin:0 0 14px;color:#a8bfd0}
+.essential-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.essential-cell{border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0;background:#182c34;border:1px solid #496375}
+.essential-cell.verified{border-color:#397b65;background:#122b24}
+.essential-cell.review{border-color:#957029;background:#352715}
+.essential-cell span{font-size:.82rem;color:#c8d5de}
+.essential-cell strong{font-size:1.15rem;overflow-wrap:anywhere}
+.essential-cell small{font-size:.72rem;line-height:1.4;color:#b4c8cb}
+@media(min-width:740px){.essential-grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
