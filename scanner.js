@@ -74,7 +74,7 @@ function setCropBanner(msg,kind="ok"){$("qualityBanner").hidden=false;$("quality
 
 function imageQuality(){
   if(!window.cv||!cv.Mat)return {blur:null,brightness:null};
-  let a,g,lap;try{a=cv.imread(src);g=new cv.Mat();lap=new cv.Mat();cv.cvtColor(a,g,cv.COLOR_RGBA2GRAY);const mean=cv.mean(g)[0];cv.Laplacian(g,lap,cv.CV_64F);const m=new cv.Mat(),sd=new cv.Mat();cv.meanStdDev(lap,m,sd);const variance=sd.doubleAt(0,0)**2;m.delete();sd.delete();return {blur:variance,brightness:mean}}catch{return {blur:null,brightness:null}}finally{[a,g,lap].forEach(x=>{try{x&&x.delete()}catch{}})}
+  let a,g,lap;try{const qc=document.createElement("canvas"),f=Math.min(1,900/Math.max(src.width,src.height));qc.width=Math.max(2,Math.round(src.width*f));qc.height=Math.max(2,Math.round(src.height*f));qc.getContext("2d").drawImage(src,0,0,qc.width,qc.height);a=cv.imread(qc);g=new cv.Mat();lap=new cv.Mat();cv.cvtColor(a,g,cv.COLOR_RGBA2GRAY);const mean=cv.mean(g)[0];cv.Laplacian(g,lap,cv.CV_64F);const m=new cv.Mat(),sd=new cv.Mat();cv.meanStdDev(lap,m,sd);const variance=sd.doubleAt(0,0)**2;m.delete();sd.delete();return {blur:variance,brightness:mean}}catch{return {blur:null,brightness:null}}finally{[a,g,lap].forEach(x=>{try{x&&x.delete()}catch{}})}
 }
 function clearCaptureState(){
   file=null;pts=[];drag=-1;correctedBlob=null;ocrText="";ocrConfidence=0;lastFields={};lastExtraction=null;
@@ -173,11 +173,17 @@ async function captureLiveFrame(){
   if(!mediaStream||!w||!h){window.gasto360Cloud.toast("La cámara todavía no está lista.","warn");return}
   $("captureLiveBtn").disabled=true;
   $("cameraStatus").textContent="Capturando ticket...";
-  const c=document.createElement("canvas");c.width=w;c.height=h;
-  const ctx=c.getContext("2d",{alpha:false});
-  ctx.drawImage(video,0,0,w,h);
-  const blob=await new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error("No se pudo crear la fotografía")),"image/jpeg",.96));
-  const captured=new File([blob],`ticket_${new Date().toISOString().replace(/[:.]/g,"-")}.jpg`,{type:"image/jpeg",lastModified:Date.now()});
+  let blob=null;
+  if(window.ImageCapture&&mediaStream.getVideoTracks().length){
+    try{blob=await new ImageCapture(mediaStream.getVideoTracks()[0]).takePhoto()}catch(e){console.warn("Foto de máxima resolución no disponible; usamos fotograma",e)}
+  }
+  if(!blob){
+    const c=document.createElement("canvas");c.width=w;c.height=h;
+    const ctx=c.getContext("2d",{alpha:false});ctx.drawImage(video,0,0,w,h);
+    blob=await new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error("No se pudo crear la fotografía")),"image/jpeg",.96));
+  }
+  const mime=blob.type||"image/jpeg",ext=mime.includes("png")?"png":"jpg";
+  const captured=new File([blob],"ticket_"+new Date().toISOString().replace(/[:.]/g,"-")+"."+ext,{type:mime,lastModified:Date.now()});
   stopCamera();
   $("liveCameraPanel").hidden=true;
   $("captureLauncher").hidden=false;
