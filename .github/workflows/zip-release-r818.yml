@@ -1,0 +1,57 @@
+name: Gasto360 R8.18 - ZIP completo HUB Windows
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'instaladores/r818/**'
+      - '.github/workflows/zip-release-r818.yml'
+      - 'scanner.js'
+      - 'revision-r818.js'
+      - 'index.html'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Comprobar integracion
+        run: |
+          node tests-r818-production.cjs
+          node pruebas-r818/tests-r818.cjs
+          node --check scanner.js
+          node --check revision-r818.js
+      - name: Construir paquete completo para HUB
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/Gasto360_R818_HUB/WEB
+          cp instaladores/r818/*.ps1 instaladores/r818/*.bat instaladores/r818/*.txt dist/Gasto360_R818_HUB/
+          for f in index.html app.js config.js styles.css scanner.js sw.js manifest.webmanifest scanner-r86-core.js ocr-r87.js desglose-r814.js rescate-r815.js interpretacion-r816.js esenciales-r817.js revision-r818.js; do
+            cp "$f" dist/Gasto360_R818_HUB/WEB/
+          done
+          (cd dist/Gasto360_R818_HUB && sha256sum WEB/* > SHA256_WEB.txt)
+          (cd dist && zip -q -r ../GASTO360_R818_HUB_INTEGRACION_COMPLETA.zip Gasto360_R818_HUB)
+          sha256sum GASTO360_R818_HUB_INTEGRACION_COMPLETA.zip | tee SHA256_ZIP.txt
+          unzip -t GASTO360_R818_HUB_INTEGRACION_COMPLETA.zip | tail -n 1
+      - name: Publicar ZIP de pruebas en GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: GASTO360_R818_HUB_INTEGRACION_COMPLETA
+          path: GASTO360_R818_HUB_INTEGRACION_COMPLETA.zip
+          if-no-files-found: error
+      - name: Publicar ZIP descargable desde GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v8.18-hub >/dev/null 2>&1; then
+            gh release upload v8.18-hub GASTO360_R818_HUB_INTEGRACION_COMPLETA.zip --clobber
+          else
+            gh release create v8.18-hub GASTO360_R818_HUB_INTEGRACION_COMPLETA.zip --title 'Gasto360 R8.18 - Integracion Cloud y HUB Windows' --notes 'ZIP completo: Gasto360 Cloud R8.18 real y actualizador conservador para HUB Windows. Comprueba compatibilidad del frontend local, guarda backup, nunca reemplaza backend FastAPI ni bases de datos. Si es una interfaz distinta, deja el paquete preparado sin activarlo.'
+          fi
