@@ -1,0 +1,49 @@
+GASTO360 R8.15 — RESCATE DEL DESGLOSE INTELIGENTE
+====================================================
+VERSIÓN DE PRUEBAS: no modifica Gasto360 habitual, HUB ni Supabase.
+El original y el texto OCR se conservan en la pestaña, sin subir datos.
+
+SAMSUNG / INTERNET:
+https://akl74.github.io/gasto360-cloud/pruebas-r815/?v=815
+
+WINDOWS:
+Descomprime ZIP de la rama rescate-desglose-r815-20261112.
+Abre pruebas-r815 e inicia INICIAR_GASTO360_R815_PRUEBAS.bat
+(requiere Python 3). Puerto local http://127.0.0.1:18915/.
+
+QUÉ SE HA CORREGIDO DESDE R8.14
+1. El analizador usa tanto "original" como "contraste" y recupera
+   artículos aunque el precio de una línea esté defectuoso.
+2. Lee también la cabecera dispersa para proponer precios, no para
+   rellenarlos automáticamente. Las propuestas requieren que el
+   usuario compruebe el precio en el ticket y confirme expresamente.
+3. Recupera promociones alineadas con artículos SOLO cuando su suma
+   coincide con el descuento total leído, sin reutilizar cifras.
+   La asociación sigue marcada PARA REVISAR.
+4. Reconoce la tabla fiscal con cabeceras OCR alteradas (TVA%)
+   y etiquetas como 4K / Co 21%, validando aritméticamente la suma
+   con el total pagado. Los tipos alterados necesitan revisión.
+5. Descuentos de artículos con precio desconocido no se descuentan
+   incorrectamente del neto de productos con precio verificado.
+6. El subtotal de descuentos no se muestra como candidato de TOTAL.
+7. Mantiene exactamente los controles de fotografía de R8.13.
+
+PRUEBA CON EL MISMO TICKET LIDL
+- Recortar solo el ticket y pulsar Continuar.
+- Verificar 11 líneas de artículos (con algunos precios pendientes).
+- Verificar cuatro promociones por 6,93 € (revisar cada asociación).
+- Verificar base imponible 37,31 € e IVA 5,17 €.
+- No aceptar como correcto un precio propuesto solamente por cercanía.
+  El OCR del ticket disponible propone 2,99 € para los taquitos,
+  pero esa lectura es dudosa: CONFIRMAR CON LA FOTOGRAFÍA.
+- Editar cada artículo o confirmar propuesta solo después de verla.
+- El estado permanece PENDIENTE si hay precios sin verificar.
+- Descargar diagnóstico JSON si las pruebas no coinciden.
+
+PRIVACIDAD
+No se publicó el diagnóstico del usuario en el repositorio. Las
+pruebas de regresión usan datos FICTICIOS y no contienen fotografías,
+números de tarjeta, direcciones ni nombres de usuario.
+Los resultados de sesión NO se conservan al cerrar/recargar.
+Los JSON exportados pueden contener datos privados; revisarlos antes
+de compartir.
