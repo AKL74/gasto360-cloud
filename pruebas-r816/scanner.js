@@ -391,8 +391,8 @@ async function recognizeCanvas(c,label,base,span){
 }
 async function runOCR(){
   updateProgress(27,"Reconociendo texto…","Lectura en varias zonas y tratamientos de imagen");
-  if(!window.Gasto360OCRR815)throw new Error("No se cargó el motor OCR R8.16. Recarga la página.");
-  const r=await window.Gasto360OCRR815.run(dst,(raw,conf,known)=>window.Gasto360ScanR86.extract(raw,conf,known),knownMerchants,updateProgress);
+  if(!window.Gasto360OCRR816)throw new Error("No se cargó el motor OCR R8.16. Recarga la página.");
+  const r=await window.Gasto360OCRR816.run(dst,(raw,conf,known)=>window.Gasto360ScanR86.extract(raw,conf,known),knownMerchants,updateProgress);
   const analysis=window.Gasto360DesgloseR816.analyze(r.diagnostics?.passes||[],r.fields);
   window.Gasto360DesgloseR816.applyResult(r.fields,analysis);
   r.fields.items=analysis.items;
